@@ -1,23 +1,12 @@
 import fastify from 'fastify';
 import process from 'process';
 import routes from './routes/index';
-import fs from 'fs';
 import path from 'path';
 import * as subscriptionRepository from './repositories/subscription.repository';
 const fastifyCors = require('@fastify/cors');
 const fastifyStatic = require('@fastify/static');
 
-const isLocalhost = process.env.NODE_ENV !== 'production';
-
-const app = fastify({
-    logger: false,
-    ...(isLocalhost ? {} : {
-        https: {
-            key: fs.readFileSync(path.join(__dirname, 'certificates', 'privkey.pem')),
-            cert: fs.readFileSync(path.join(__dirname, 'certificates', 'fullchain.pem'))
-        }
-    })
-});
+const app = fastify({ logger: false });
 
 app.register(fastifyCors, {
     origin: '*', // Permitir todas as origens. Ajuste conforme necessário.
