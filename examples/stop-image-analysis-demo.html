@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demonstração - Interromper Análise de Imagem</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+      color: #2c3e50;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input, textarea, select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+    textarea {
+      height: 80px;
+      resize: vertical;
+    }
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    #analyzeButton {
+      background-color: #3498db;
+      color: white;
+      flex: 2;
+    }
+    #analyzeButton:hover {
+      background-color: #2980b9;
+    }
+    #stopButton {
+      background-color: #e74c3c;
+      color: white;
+      flex: 1;
+    }
+    #stopButton:hover {
+      background-color: #c0392b;
+    }
+    #stopButton:disabled, #analyzeButton:disabled {
+      background-color: #95a5a6;
+      cursor: not-allowed;
+    }
+    .result-container {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 15px;
+      background-color: #f9f9f9;
+      min-height: 200px;
+      white-space: pre-wrap;
+      overflow-y: auto;
+      max-height: 500px;
+    }
+    .status {
+      text-align: center;
+      font-size: 14px;
+      margin-top: 10px;
+      color: #7f8c8d;
+    }
+    .error {
+      color: #e74c3c;
+      font-weight: bold;
+    }
+    .success {
+      color: #2ecc71;
+      font-weight: bold;
+    }
+    .image-preview {
+      max-width: 100%;
+      height: auto;
+      margin: 10px 0;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+      display: none;
+    }
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid #ddd;
+      margin-bottom: 15px;
+    }
+    .tab {
+      padding: 10px 20px;
+      cursor: pointer;
+      background-color: #f1f1f1;
+      border: 1px solid #ddd;
+      border-bottom: none;
+      margin-right: 5px;
+      border-radius: 4px 4px 0 0;
+    }
+    .tab.active {
+      background-color: white;
+      border-bottom: 1px solid white;
+      margin-bottom: -1px;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <h1>Demonstração de Interrupção de Análise de Imagem</h1>
+  
+  <div class="tabs">
+    <div class="tab active" data-tab="url">URL da Imagem</div>
+    <div class="tab" data-tab="upload">Upload de Imagem</div>
+  </div>
+  
+  <div class="tab-content active" id="url-tab">
+    <div class="form-group">
+      <label for="imageUrl">URL da Imagem:</label>
+      <input type="text" id="imageUrl" placeholder="https://example.com/image.jpg">
+    </div>
+  </div>
+  
+  <div class="tab-content" id="upload-tab">
+    <div class="form-group">
+      <label for="imageUpload">Selecione uma Imagem:</label>
+      <input type="file" id="imageUpload" accept="image/*">
+    </div>
+  </div>
+
+  <img id="imagePreview" class="image-preview" alt="Prévia da imagem">
+  
+  <div class="form-group">
+    <label for="prompt">Prompt para análise (opcional):</label>
+    <textarea id="prompt" placeholder="Por exemplo: Descreva detalhadamente o que está nesta imagem."></textarea>
+  </div>
+
+  <div class="form-group">
+    <label for="model">Modelo:</label>
+    <select id="model">
+      <option value="baixo">Baixo (mais rápido, menos detalhes)</option>
+      <option value="bom">Bom (Mistral Small)</option>
+      <option value="equilibrado" selected>Equilibrado (recomendado)</option>
+      <option value="otimo">Ótimo (mais lento, mais detalhes)</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label for="userId">ID do Usuário (para teste):</label>
+    <input type="number" id="userId" value="1" min="1">
+  </div>
+
+  <div class="button-group">
+    <button id="analyzeButton">Analisar Imagem</button>
+    <button id="stopButton" disabled>Parar</button>
+  </div>
+
+  <div class="form-group">
+    <label for="output">Resultado da Análise:</label>
+    <div id="output" class="result-container"></div>
+    <div id="status" class="status">Aguardando imagem e comando para análise</div>
+  </div>
+
+  <script>
+    // Configuração da API
+    const API_BASE_URL = 'http://localhost:3000';
+    let activeConnection = null;
+    let activeConnectionId = null;
+    let imageBase64 = null;
+
+    // Configuração das abas
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        
+        tab.classList.add('active');
+        document.getElementById(`${tab.dataset.tab}-tab`).classList.add('active');
+      });
+    });
+
+    // Tratamento de upload de imagem
+    document.getElementById('imageUpload').addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        
+        reader.onload = (e) => {
+          const result = e.target.result;
+          imageBase64 = result;
+          
+          // Exibe a prévia da imagem
+          const imagePreview = document.getElementById('imagePreview');
+          imagePreview.src = result;
+          imagePreview.style.display = 'block';
+          
+          setStatus('Imagem carregada com sucesso!', 'success');
+        };
+        
+        reader.onerror = () => {
+          setStatus('Erro ao ler o arquivo de imagem.', 'error');
+        };
+        
+        reader.readAsDataURL(file);
+      }
+    });
+
+    // Exibir preview ao inserir URL
+    document.getElementById('imageUrl').addEventListener('blur', (event) => {
+      const url = event.target.value.trim();
+      if (url) {
+        const imagePreview = document.getElementById('imagePreview');
+        imagePreview.src = url;
+        imagePreview.style.display = 'block';
+        imagePreview.onerror = () => {
+          imagePreview.style.display = 'none';
+          setStatus('URL de imagem inválida ou inacessível.', 'error');
+        };
+        imagePreview.onload = () => {
+          setStatus('URL de imagem carregada com sucesso!', 'success');
+        };
+      }
+    });
+
+    // Função para iniciar a análise de imagem
+    function startImageAnalysis() {
+      // Se já existir uma conexão ativa, interrompe
+      if (activeConnection) {
+        stopAnalysis();
+      }
+      
+      // Verifica qual aba está ativa
+      const isUrlTab = document.querySelector('.tab[data-tab="url"]').classList.contains('active');
+      
+      let imageUrl = '';
+      
+      // Obtém o prompt e o modelo selecionado
+      const prompt = document.getElementById('prompt').value || 'Descreva detalhadamente esta imagem.';
+      const model = document.getElementById('model').value;
+      const userId = document.getElementById('userId').value;
+      
+      if (!userId || isNaN(parseInt(userId)) || parseInt(userId) < 1) {
+        setStatus('Por favor, informe um ID de usuário válido', 'error');
+        return;
+      }
+      
+      // Verifica qual fonte de imagem usar
+      if (isUrlTab) {
+        imageUrl = document.getElementById('imageUrl').value.trim();
+        
+        if (!imageUrl) {
+          setStatus('Por favor, forneça uma URL de imagem válida', 'error');
+          return;
+        }
+        
+        // Testa se a URL é válida
+        try {
+          new URL(imageUrl);
+        } catch (e) {
+          setStatus('URL da imagem inválida', 'error');
+          return;
+        }
+      } else {
+        // Verifica se temos uma imagem base64
+        if (!imageBase64) {
+          setStatus('Por favor, faça upload de uma imagem primeiro', 'error');
+          return;
+        }
+      }
+      
+      console.log('Iniciando análise de imagem:', { 
+        useUrl: isUrlTab, 
+        imageUrlLength: imageUrl.length, 
+        imageBase64Present: !!imageBase64,
+        prompt, 
+        model, 
+        userId 
+      });
+      
+      // Parâmetros da requisição
+      const params = new URLSearchParams({
+        prompt,
+        userId: userId.toString(),
+        streaming: 'true',
+        model
+      });
+      
+      // Adiciona a URL da imagem se estiver usando URL
+      if (isUrlTab) {
+        params.append('imageUrl', imageUrl);
+      } else {
+        params.append('imageBase64', imageBase64);
+      }
+      
+      // Limpa o output e atualiza status
+      const outputElement = document.getElementById('output');
+      outputElement.textContent = '';
+      setStatus('Conectando ao servidor...', 'normal');
+      
+      try {
+        // Cria uma nova conexão EventSource
+        activeConnection = new EventSource(`${API_BASE_URL}/ai/analyze-image?${params}`);
+        
+        // Manipuladores de eventos
+        activeConnection.onopen = () => {
+          console.log('Conexão estabelecida');
+          setStatus('Conexão estabelecida, aguardando resposta...', 'normal');
+        };
+        
+        activeConnection.onerror = (error) => {
+          console.error('Erro na conexão:', error);
+          setStatus('Erro na conexão com o servidor. Verifique o console para mais detalhes.', 'error');
+          stopAnalysis();
+        };
+        
+        activeConnection.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            
+            // Se receber o ID da conexão
+            if (data.status === 'conectado' && data.connectionId) {
+              activeConnectionId = data.connectionId;
+              setStatus(`Conexão ativa (ID: ${activeConnectionId.substring(0, 8)}...)`, 'success');
+              console.log('ID da conexão:', activeConnectionId);
+            }
+            
+            // Se receber texto
+            if (data.text) {
+              appendOutput(data.text);
+            }
+            
+            // Se receber erro
+            if (data.error) {
+              appendOutput(`\n\nErro: ${data.error}`);
+              setStatus(`Erro: ${data.error}`, 'error');
+              stopAnalysis(false);
+            }
+            
+            // Se a análise for concluída
+            if (data.done) {
+              console.log('Análise concluída');
+              setStatus('Análise concluída com sucesso!', 'success');
+              stopAnalysis(false);
+            }
+          } catch (error) {
+            console.error('Erro ao processar mensagem:', error, event.data);
+            setStatus('Erro ao processar resposta do servidor', 'error');
+          }
+        };
+        
+        // Atualiza o estado dos botões
+        document.getElementById('stopButton').disabled = false;
+        document.getElementById('analyzeButton').disabled = true;
+      } catch (error) {
+        console.error('Erro ao criar conexão EventSource:', error);
+        setStatus('Erro ao criar conexão com o servidor', 'error');
+      }
+    }
+
+    // Função para interromper a análise em andamento
+    function stopAnalysis(userInitiated = true) {
+      if (!activeConnection) {
+        console.log('Nenhuma análise ativa para interromper');
+        return;
+      }
+      
+      // Fecha a conexão EventSource
+      activeConnection.close();
+      
+      // Se tivermos o ID da conexão, notifica o servidor
+      if (activeConnectionId) {
+        console.log('Interrompendo análise com ID:', activeConnectionId);
+        
+        const userId = document.getElementById('userId').value;
+        
+        // Envia uma requisição para interromper a análise no servidor
+        fetch(`${API_BASE_URL}/ai/stop-generation?connectionId=${activeConnectionId}&userId=${userId}`)
+          .then(response => response.json())
+          .then(data => {
+            console.log('Resposta da interrupção:', data);
+            if (userInitiated) {
+              setStatus('Análise interrompida pelo usuário', 'normal');
+            }
+          })
+          .catch(error => {
+            console.error('Erro ao interromper análise:', error);
+            setStatus('Erro ao interromper análise', 'error');
+          });
+      }
+      
+      // Limpa as variáveis de estado
+      activeConnection = null;
+      activeConnectionId = null;
+      
+      // Atualiza o estado dos botões
+      document.getElementById('stopButton').disabled = true;
+      document.getElementById('analyzeButton').disabled = false;
+      
+      // Adiciona uma mensagem indicando que a análise foi interrompida, se foi o usuário que iniciou
+      if (userInitiated) {
+        appendOutput('\n\n[Análise interrompida pelo usuário]');
+      }
+    }
+
+    // Função auxiliar para adicionar texto à saída
+    function appendOutput(text) {
+      const outputElement = document.getElementById('output');
+      outputElement.textContent += text;
+      // Auto-scroll para o final
+      outputElement.scrollTop = outputElement.scrollHeight;
+    }
+
+    // Função auxiliar para atualizar o status
+    function setStatus(message, type = 'normal') {
+      const statusElement = document.getElementById('status');
+      statusElement.textContent = message;
+      
+      // Remove classes anteriores
+      statusElement.classList.remove('error', 'success');
+      
+      // Adiciona classe com base no tipo
+      if (type === 'error') {
+        statusElement.classList.add('error');
+      } else if (type === 'success') {
+        statusElement.classList.add('success');
+      }
+    }
+
+    // Adiciona os event listeners aos botões
+    document.getElementById('analyzeButton').addEventListener('click', startImageAnalysis);
+    document.getElementById('stopButton').addEventListener('click', stopAnalysis);
+
+    // URL de imagem de exemplo
+    document.getElementById('imageUrl').value = 'https://images.unsplash.com/photo-1526336024174-e58f5cdd8e13?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1074&q=80';
+    
+    // Simula o evento blur para carregar a prévia
+    const event = new Event('blur');
+    document.getElementById('imageUrl').dispatchEvent(event);
+  </script>
+</body>
+</html>

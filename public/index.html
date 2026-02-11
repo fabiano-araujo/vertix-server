@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AbacatePay - Integração Pix</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+            background-color: #f9f9f9;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        h1 {
+            color: #4CAF50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        h2 {
+            color: #2196F3;
+        }
+        .cards {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .card {
+            flex: 1;
+            min-width: 250px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            background-color: #f9f9f9;
+        }
+        .card h3 {
+            margin-top: 0;
+            color: #4CAF50;
+        }
+        .card p {
+            margin-bottom: 20px;
+        }
+        .card-link {
+            display: inline-block;
+            background-color: #4CAF50;
+            color: white;
+            text-decoration: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-weight: 600;
+            text-align: center;
+        }
+        .card-link:hover {
+            background-color: #45a049;
+        }
+        .steps {
+            list-style-type: decimal;
+            padding-left: 20px;
+        }
+        .steps li {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AbacatePay - Integração Pix</h1>
+        
+        <h2>Bem-vindo(a) ao Demo de Integração Pix!</h2>
+        <p>Esta aplicação demonstra como integrar pagamentos via Pix usando a API do AbacatePay. Siga os passos abaixo para testar a integração:</p>
+        
+        <ol class="steps">
+            <li>Gere um token de teste na página "Obter Token"</li>
+            <li>Vá para a página de "Teste de Pagamento Pix"</li>
+            <li>Cole o token gerado no campo apropriado</li>
+            <li>Preencha os detalhes do pagamento e gere uma cobrança Pix</li>
+            <li>Escaneie o QR Code gerado ou copie o código Pix para simular o pagamento</li>
+        </ol>
+        
+        <div class="cards">
+            <div class="card">
+                <h3>Obter Token de Teste</h3>
+                <p>Gere um token JWT para autenticar suas requisições na API de pagamento.</p>
+                <a href="get-test-token.html" class="card-link">Acessar</a>
+            </div>
+            
+            <div class="card">
+                <h3>Teste de Pagamento Pix</h3>
+                <p>Gere cobranças Pix e visualize QR Codes para pagamento.</p>
+                <a href="pix-payment-test.html" class="card-link">Acessar</a>
+            </div>
+        </div>
+        
+        <p style="margin-top: 30px; text-align: center; color: #666;">
+            <small>Chave API de Teste: abc_dev_YRzAx2UbsTU5XAj4j1sEwTtE</small>
+        </p>
+    </div>
+</body>
+</html> 

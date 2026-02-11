@@ -1,0 +1,257 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+
+model User {
+  id          Int      @id @default(autoincrement())
+  name        String
+  email       String   @unique
+  password    String?
+  googleId    String?  @unique
+  username    String?
+  photo       String?
+  role        String   @default("USER") // USER, ADMIN, CREATOR
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relacionamentos existentes
+  subscriptions   Subscription[]
+  credits         UserCredits?
+
+  // Novos relacionamentos para streaming
+  createdSeries   Series[]         @relation("CreatorSeries")
+  preferences     UserPreferences?
+  watchHistory    WatchHistory[]
+  episodeLikes    EpisodeLike[]
+  comments        Comment[]
+  commentLikes    CommentLike[]
+  downloads       UserDownload[]
+}
+
+// ============================================
+// MODELOS DE STREAMING
+// ============================================
+
+model Series {
+  id              Int       @id @default(autoincrement())
+  title           String
+  description     String    @db.Text
+  coverUrl        String
+  thumbnailUrl    String?
+  genre           String
+  tags            String?   @db.Text // JSON array as string
+  totalEpisodes   Int       @default(0)
+  createdById     Int
+  hypeScore       Float     @default(0)
+  trendingScore   Float     @default(0)
+  status          String    @default("DRAFT") // DRAFT, PUBLISHED, ARCHIVED
+  isAiGenerated   Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  createdBy       User      @relation("CreatorSeries", fields: [createdById], references: [id])
+  episodes        Episode[]
+
+  @@index([genre])
+  @@index([trendingScore])
+  @@index([hypeScore])
+  @@index([status])
+}
+
+model Episode {
+  id              Int       @id @default(autoincrement())
+  seriesId        Int
+  episodeNumber   Int
+  title           String
+  description     String?   @db.Text
+  videoUrl        String
+  thumbnailUrl    String?
+  duration        Int       // em segundos
+  views           Int       @default(0)
+  likesCount      Int       @default(0)
+  commentsCount   Int       @default(0)
+  sharesCount     Int       @default(0)
+  completionRate  Float     @default(0) // 0.0 a 1.0
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  series          Series    @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  watchHistory    WatchHistory[]
+  likes           EpisodeLike[]
+  comments        Comment[]
+
+  @@unique([seriesId, episodeNumber])
+  @@index([views])
+  @@index([likesCount])
+  @@index([completionRate])
+}
+
+// ============================================
+// SISTEMA DE CURTIDAS (EPISÓDIOS)
+// ============================================
+
+model EpisodeLike {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  episodeId   Int
+  createdAt   DateTime  @default(now())
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  episode     Episode   @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, episodeId])
+  @@index([episodeId])
+}
+
+// ============================================
+// SISTEMA DE COMENTÁRIOS (ESTILO TIKTOK)
+// ============================================
+
+model Comment {
+  id          Int       @id @default(autoincrement())
+  episodeId   Int
+  userId      Int
+  parentId    Int?      // Para respostas a comentários
+  content     String    @db.Text
+  likesCount  Int       @default(0)
+  repliesCount Int      @default(0)
+  isPinned    Boolean   @default(false)
+  isHidden    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  episode     Episode   @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent      Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies     Comment[] @relation("CommentReplies")
+  likes       CommentLike[]
+
+  @@index([episodeId, createdAt])
+  @@index([parentId])
+  @@index([likesCount])
+}
+
+model CommentLike {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  commentId   Int
+  createdAt   DateTime  @default(now())
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment     Comment   @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, commentId])
+  @@index([commentId])
+}
+
+// ============================================
+// PREFERÊNCIAS E HISTÓRICO DO USUÁRIO
+// ============================================
+
+model UserPreferences {
+  id          Int       @id @default(autoincrement())
+  userId      Int       @unique
+  preferences String    @db.Text // JSON: { "genre": weight, ... }
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model WatchHistory {
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  episodeId     Int
+  progress      Float     @default(0) // 0.0 a 1.0 (porcentagem assistida)
+  watchTime     Int       @default(0) // tempo total assistido em segundos
+  completedAt   DateTime?
+  lastWatchedAt DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  episode       Episode   @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, episodeId])
+  @@index([userId, lastWatchedAt])
+}
+
+model UserDownload {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  episodeId   Int
+  localPath   String
+  fileSize    Int?      // em bytes
+  downloadedAt DateTime @default(now())
+  expiresAt   DateTime
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, episodeId])
+}
+
+// ============================================
+// GERAÇÃO DE CONTEÚDO COM IA
+// ============================================
+
+model AIGenerationJob {
+  id            Int       @id @default(autoincrement())
+  seriesId      Int?
+  status        String    @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  type          String    // SCRIPT, COVER, VIDEO, FULL_SERIES
+  inputData     String    @db.Text // JSON com parâmetros
+  outputData    String?   @db.Text // JSON com resultados
+  errorMessage  String?   @db.Text
+  progress      Int       @default(0) // 0 a 100
+  createdById   Int
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  completedAt   DateTime?
+
+  @@index([status])
+  @@index([createdById])
+}
+
+// Modelo de assinatura
+model Subscription {
+  id              Int       @id @default(autoincrement())
+  userId          Int                                     // ID do usuário associado
+  planType        String                                  // Tipo de plano: "semanal", "mensal", "anual"
+  startDate       DateTime  @default(now())               // Data de início da assinatura
+  expirationDate  DateTime                                // Data de expiração da assinatura
+  active          Boolean   @default(true)                // Status da assinatura
+  paymentId       String?                                 // ID de referência do pagamento
+  createdAt       DateTime  @default(now())               // Data de criação do registro
+  updatedAt       DateTime  @updatedAt                    // Data de atualização do registro
+  
+  // Relacionamento com usuário
+  user            User      @relation(fields: [userId], references: [id])
+}
+
+// Modelo para gerenciar créditos diários do usuário
+model UserCredits {
+  id                Int       @id @default(autoincrement())
+  userId            Int       @unique                          // ID do usuário associado
+  availableCredits  Int       @default(20)                     // Créditos disponíveis atualmente
+  lastReset         DateTime  @default(now())                  // Data da última reinicialização
+  lastCheck         DateTime  @default(now())                  // Data da última verificação pelo usuário
+  createdAt         DateTime  @default(now())                  // Data de criação do registro
+  updatedAt         DateTime  @updatedAt                       // Data de atualização do registro
+  
+  // Relacionamento com usuário
+  user              User      @relation(fields: [userId], references: [id])
+}
+model DeviceCredits {
+  id                Int       @id @default(autoincrement())
+  deviceId          String    @unique
+  availableCredits  Int       @default(100)
+  lastReset         DateTime  @default(now())
+  lastCheck         DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}

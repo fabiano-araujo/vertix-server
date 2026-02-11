@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo - Interrupção de Geração</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+        
+        .section {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            background-color: #f9f9f9;
+        }
+        
+        .section h2 {
+            margin-top: 0;
+            color: #444;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+        }
+        
+        input[type="text"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        
+        button {
+            background-color: #4285f4;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        
+        button:hover {
+            background-color: #3367d6;
+        }
+        
+        button.stop {
+            background-color: #d32f2f;
+        }
+        
+        button.stop:hover {
+            background-color: #b71c1c;
+        }
+        
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-height: 100px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            line-height: 1.5;
+        }
+        
+        .loading {
+            text-align: center;
+            display: none;
+            margin: 20px 0;
+        }
+        
+        .error {
+            color: #d32f2f;
+            margin-top: 10px;
+        }
+        
+        .status {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .checkbox-container {
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .checkbox-container input[type="checkbox"] {
+            margin-right: 10px;
+        }
+        
+        .model-select {
+            margin-top: 15px;
+        }
+        
+        .model-section {
+            margin-bottom: 10px;
+        }
+        
+        .model-section-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #555;
+        }
+        
+        .streaming-content {
+            font-family: monospace;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .dialog-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .dialog {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 80%;
+            max-height: 80%;
+            overflow-y: auto;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        .dialog h3 {
+            margin-top: 0;
+            color: #4285f4;
+        }
+        
+        .dialog pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        
+        .dialog-buttons {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+        
+        .dialog-buttons button {
+            margin-left: 10px;
+        }
+        
+        .cursor-blink {
+            display: inline-block;
+            width: 0.5em;
+            height: 1em;
+            background-color: #333;
+            margin-left: 2px;
+            animation: blink 1s step-end infinite;
+            vertical-align: text-bottom;
+        }
+        
+        @keyframes blink {
+            from, to { opacity: 1; }
+            50% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <h1>Demo - Interrupção de Geração de Texto</h1>
+    
+    <div class="container">
+        <div class="section" id="section-text">
+            <h2>Geração de Texto com Interrupção</h2>
+            <p>Insira um prompt para gerar texto e teste a funcionalidade de interrupção da geração.</p>
+            
+            <div>
+                <label for="text-prompt">Prompt:</label>
+                <textarea id="text-prompt" rows="5" placeholder="Digite seu prompt aqui...">Escreva um texto longo sobre a história da inteligência artificial, começando pelos primeiros conceitos e chegando até os dias atuais. Inclua detalhes sobre os principais marcos, pesquisadores e avanços tecnológicos.</textarea>
+                
+                <div class="model-select">
+                    <label for="text-model-type">Modelo:</label>
+                    <select id="text-model-type">
+                        <option value="bom" selected>Bom (Mistral Small)</option>
+                        <option value="otimo">Ótimo (GPT-4o Mini)</option>
+                        <option value="equilibrado">Equilibrado (Gemma 3 27B)</option>
+                        <option value="baixo">Econômico (Gemma 3 12B)</option>
+                    </select>
+                </div>
+                
+                <div class="checkbox-container">
+                    <input type="checkbox" id="streaming-checkbox" checked>
+                    <label for="streaming-checkbox">Usar streaming (necessário para interrupção)</label>
+                </div>
+                
+                <div>
+                    <label for="temperature">Temperatura (0-1):</label>
+                    <input type="number" id="temperature" min="0" max="1" step="0.1" value="0.7">
+                </div>
+                
+                <div style="margin-top: 15px;">
+                    <button id="generate-btn">Gerar Texto</button>
+                    <button id="stop-btn" class="stop" disabled>Interromper Geração</button>
+                    <button id="clear-btn">Limpar</button>
+                </div>
+            </div>
+            
+            <div id="text-loading" class="loading">Gerando texto...</div>
+            <div id="text-error" class="error"></div>
+            <div id="text-status" class="status"></div>
+            
+            <div id="text-result" class="result streaming-content"></div>
+        </div>
+    </div>
+    
+    <!-- Dialog para mostrar informações da solicitação -->
+    <div id="request-info-dialog" class="dialog-overlay">
+        <div class="dialog">
+            <h3>Detalhes da Solicitação</h3>
+            <pre id="request-info-content"></pre>
+            <div class="dialog-buttons">
+                <button id="close-dialog-btn">Fechar</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Função para mostrar o dialog com informações da solicitação
+        function showRequestInfoDialog(requestInfo) {
+            const dialogOverlay = document.getElementById('request-info-dialog');
+            const dialogContent = document.getElementById('request-info-content');
+            
+            // Formatar o JSON para exibição
+            dialogContent.textContent = JSON.stringify(requestInfo, null, 2);
+            
+            // Mostrar o dialog
+            dialogOverlay.style.display = 'flex';
+        }
+        
+        // Elementos da página
+        const textPromptInput = document.getElementById('text-prompt');
+        const textModelType = document.getElementById('text-model-type');
+        const streamingCheckbox = document.getElementById('streaming-checkbox');
+        const temperatureInput = document.getElementById('temperature');
+        const generateBtn = document.getElementById('generate-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const textResult = document.getElementById('text-result');
+        const textLoading = document.getElementById('text-loading');
+        const textError = document.getElementById('text-error');
+        const textStatus = document.getElementById('text-status');
+        const closeDialogBtn = document.getElementById('close-dialog-btn');
+        
+        // Fechar o dialog quando o botão de fechar for clicado
+        closeDialogBtn.addEventListener('click', () => {
+            document.getElementById('request-info-dialog').style.display = 'none';
+        });
+        
+        // Variáveis para controle da geração
+        let currentConnectionId = null;
+        let isGenerating = false;
+        
+        // Limpar o resultado
+        clearBtn.addEventListener('click', () => {
+            textResult.innerHTML = '';
+            textError.textContent = '';
+            textStatus.textContent = '';
+        });
+        
+        // Função para processar streaming via EventSource
+        function processEventStream(url, resultElement, loadingElement, errorElement, statusElement) {
+            // Limpar conteúdo anterior
+            resultElement.innerHTML = '';
+            errorElement.textContent = '';
+            statusElement.textContent = '';
+            
+            // Mostrar indicador de carregamento
+            loadingElement.style.display = 'block';
+            
+            // Iniciar geração
+            isGenerating = true;
+            stopBtn.disabled = false;
+            generateBtn.disabled = true;
+            
+            // Criar cursor piscante
+            const cursor = document.createElement('span');
+            cursor.className = 'cursor-blink';
+            resultElement.appendChild(cursor);
+            
+            // Iniciar EventSource
+            const eventSource = new EventSource(url);
+            let accumulatedText = '';
+            
+            eventSource.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    
+                    // Se recebemos o ID de conexão
+                    if (data.status === 'conectado') {
+                        currentConnectionId = data.connectionId;
+                        statusElement.textContent = `Conexão estabelecida (ID: ${currentConnectionId})`;
+                        return;
+                    }
+                    
+                    // Se recebemos texto
+                    if (data.text) {
+                        accumulatedText += data.text;
+                        resultElement.innerHTML = accumulatedText;
+                        resultElement.appendChild(cursor);
+                    }
+                    
+                    // Se recebemos um erro
+                    if (data.error) {
+                        errorElement.textContent = `Erro: ${data.error}`;
+                        eventSource.close();
+                        loadingElement.style.display = 'none';
+                        isGenerating = false;
+                        stopBtn.disabled = true;
+                        generateBtn.disabled = false;
+                        currentConnectionId = null;
+                    }
+                    
+                    // Se a geração foi concluída
+                    if (data.done) {
+                        statusElement.textContent = 'Geração concluída';
+                        eventSource.close();
+                        loadingElement.style.display = 'none';
+                        isGenerating = false;
+                        stopBtn.disabled = true;
+                        generateBtn.disabled = false;
+                        currentConnectionId = null;
+                        
+                        // Remover o cursor piscante quando concluído
+                        if (cursor.parentNode) {
+                            cursor.parentNode.removeChild(cursor);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Erro ao processar evento:', error);
+                    errorElement.textContent = `Erro ao processar resposta: ${error.message}`;
+                }
+            };
+            
+            eventSource.onerror = function(error) {
+                console.error('Erro no EventSource:', error);
+                errorElement.textContent = 'Erro na conexão com o servidor';
+                eventSource.close();
+                loadingElement.style.display = 'none';
+                isGenerating = false;
+                stopBtn.disabled = true;
+                generateBtn.disabled = false;
+                currentConnectionId = null;
+                
+                // Remover o cursor piscante em caso de erro
+                if (cursor.parentNode) {
+                    cursor.parentNode.removeChild(cursor);
+                }
+            };
+            
+            // Retornar o EventSource para possível cancelamento
+            return eventSource;
+        }
+        
+        // Gerar texto
+        generateBtn.addEventListener('click', async () => {
+            const prompt = textPromptInput.value.trim();
+            const temperature = parseFloat(temperatureInput.value);
+            const modelType = textModelType.value;
+            const useStreaming = streamingCheckbox.checked;
+            
+            if (!prompt) {
+                textError.textContent = 'Por favor, insira um prompt';
+                return;
+            }
+            
+            if (!useStreaming) {
+                textError.textContent = 'Streaming é necessário para demonstrar a interrupção. Por favor, marque a opção "Usar streaming".';
+                return;
+            }
+            
+            // Construir URL para a API
+            const apiUrl = `/ai/generate-text?prompt=${encodeURIComponent(prompt)}&temperature=${temperature}&model=${modelType}&streaming=true`;
+            
+            // Processar com EventSource
+            processEventStream(apiUrl, textResult, textLoading, textError, textStatus);
+        });
+        
+        // Interromper geração
+        stopBtn.addEventListener('click', async () => {
+            if (!currentConnectionId) {
+                textError.textContent = 'Nenhuma geração em andamento para interromper';
+                return;
+            }
+            
+            try {
+                // Chamar a API para interromper a geração
+                const response = await fetch(`/ai/stop-generation?connectionId=${currentConnectionId}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    textStatus.textContent = 'Geração interrompida pelo usuário';
+                } else {
+                    textError.textContent = `Erro ao interromper geração: ${data.message}`;
+                }
+            } catch (error) {
+                console.error('Erro ao interromper geração:', error);
+                textError.textContent = `Erro ao interromper geração: ${error.message}`;
+            }
+        });
+        
+        // Inicializar a página
+        document.addEventListener('DOMContentLoaded', () => {
+            // Configurações iniciais
+            streamingCheckbox.checked = true; // Garantir que streaming esteja ativado por padrão
+        });
+    </script>
+</body>
+</html>

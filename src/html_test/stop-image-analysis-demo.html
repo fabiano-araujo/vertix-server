@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo - Interrupu00e7u00e3o de Anu00e1lise de Imagem</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+        
+        .section {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            background-color: #f9f9f9;
+        }
+        
+        .section h2 {
+            margin-top: 0;
+            color: #444;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+        }
+        
+        input[type="text"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        
+        button {
+            background-color: #4285f4;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        
+        button:hover {
+            background-color: #3367d6;
+        }
+        
+        button.stop {
+            background-color: #d32f2f;
+        }
+        
+        button.stop:hover {
+            background-color: #b71c1c;
+        }
+        
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-height: 100px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            line-height: 1.5;
+        }
+        
+        .loading {
+            text-align: center;
+            display: none;
+            margin: 20px 0;
+        }
+        
+        .error {
+            color: #d32f2f;
+            margin-top: 10px;
+        }
+        
+        .status {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .checkbox-container {
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .checkbox-container input[type="checkbox"] {
+            margin-right: 10px;
+        }
+        
+        .model-select {
+            margin-top: 15px;
+        }
+        
+        .streaming-content {
+            font-family: monospace;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .cursor-blink {
+            display: inline-block;
+            width: 0.5em;
+            height: 1em;
+            background-color: #333;
+            margin-left: 2px;
+            animation: blink 1s step-end infinite;
+            vertical-align: text-bottom;
+        }
+        
+        @keyframes blink {
+            from, to { opacity: 1; }
+            50% { opacity: 0; }
+        }
+        
+        .tabs {
+            display: flex;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .tab-button {
+            background: none;
+            border: none;
+            padding: 8px 15px;
+            margin-right: 5px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+        }
+        
+        .tab-button.active {
+            border-bottom-color: #4285f4;
+            color: #4285f4;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .image-preview {
+            max-width: 100%;
+            margin-top: 15px;
+            text-align: center;
+            display: none;
+        }
+        
+        .image-preview img {
+            max-width: 100%;
+            max-height: 300px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .dialog-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .dialog {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 80%;
+            max-height: 80%;
+            overflow-y: auto;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        .dialog h3 {
+            margin-top: 0;
+            color: #4285f4;
+        }
+        
+        .dialog pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        
+        .dialog-buttons {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+        
+        .dialog-buttons button {
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Demo - Interrupu00e7u00e3o de Anu00e1lise de Imagem</h1>
+    
+    <div class="container">
+        <div class="section" id="section-image">
+            <h2>Anu00e1lise de Imagem com Interrupu00e7u00e3o</h2>
+            <p>Insira a URL de uma imagem ou fau00e7a upload de um arquivo para obter uma anu00e1lise do conteu00fado com a opu00e7u00e3o de interromper o processo.</p>
+            
+            <div class="tabs">
+                <button id="tab-url-image" class="tab-button active">URL da Imagem</button>
+                <button id="tab-upload-image" class="tab-button">Upload de Imagem</button>
+            </div>
+            
+            <div id="content-url-image" class="tab-content active">
+                <label for="image-url">URL da Imagem:</label>
+                <input type="text" id="image-url" placeholder="https://exemplo.com/imagem.jpg" value="https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg">
+            </div>
+            
+            <div id="content-upload-image" class="tab-content">
+                <label for="image-file">Selecione uma imagem:</label>
+                <input type="file" id="image-file" accept="image/*">
+                <div id="image-preview" class="image-preview">
+                    <img id="preview-img" src="" alt="Preview da imagem">
+                </div>
+            </div>
+            
+            <div>
+                <label for="image-prompt">Prompt (opcional):</label>
+                <textarea id="image-prompt" rows="3" placeholder="Digite instruu00e7u00f5es para a anu00e1lise da imagem...">Descreva detalhadamente o que vocu00ea vu00ea nesta imagem, incluindo todos os elementos visu00edveis, cores, ambiente e possu00edveis atividades.</textarea>
+            </div>
+            
+            <div class="model-select">
+                <label for="image-model-quality">Modelo:</label>
+                <select id="image-model-quality">
+                    <option value="bom" selected>Bom (Mistral Small)</option>
+                    <option value="otimo">u00d3timo (GPT-4o Mini)</option>
+                    <option value="equilibrado">Equilibrado (Gemma 3 27B)</option>
+                    <option value="baixo">Econu00f4mico (Gemma 3 12B)</option>
+                </select>
+            </div>
+            
+            <div class="checkbox-container">
+                <input type="checkbox" id="image-stream-checkbox" checked>
+                <label for="image-stream-checkbox">Usar streaming (necessu00e1rio para interrupu00e7u00e3o)</label>
+            </div>
+            
+            <div style="margin-top: 15px;">
+                <button id="analyze-btn">Analisar Imagem</button>
+                <button id="stop-analyze-btn" class="stop" disabled>Interromper Anu00e1lise</button>
+                <button id="clear-image-btn">Limpar</button>
+            </div>
+            
+            <div id="image-loading" class="loading">Analisando imagem...</div>
+            <div id="image-error" class="error"></div>
+            <div id="image-status" class="status"></div>
+            
+            <div id="image-result" class="result streaming-content"></div>
+        </div>
+    </div>
+    
+    <!-- Dialog para mostrar informau00e7u00f5es da solicitau00e7u00e3o -->
+    <div id="request-info-dialog" class="dialog-overlay">
+        <div class="dialog">
+            <h3>Detalhes da Solicitau00e7u00e3o</h3>
+            <pre id="request-info-content"></pre>
+            <div class="dialog-buttons">
+                <button id="close-dialog-btn">Fechar</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Funu00e7u00e3o para mostrar o dialog com informau00e7u00f5es da solicitau00e7u00e3o
+        function showRequestInfoDialog(requestInfo) {
+            const dialogOverlay = document.getElementById('request-info-dialog');
+            const dialogContent = document.getElementById('request-info-content');
+            
+            // Formatar o JSON para exibiu00e7u00e3o
+            dialogContent.textContent = JSON.stringify(requestInfo, null, 2);
+            
+            // Mostrar o dialog
+            dialogOverlay.style.display = 'flex';
+        }
+        
+        // Elementos da pu00e1gina - Abas
+        const tabUrlImage = document.getElementById('tab-url-image');
+        const tabUploadImage = document.getElementById('tab-upload-image');
+        const contentUrlImage = document.getElementById('content-url-image');
+        const contentUploadImage = document.getElementById('content-upload-image');
+        
+        // Elementos da pu00e1gina - Imagem
+        const imageUrlInput = document.getElementById('image-url');
+        const imageFileInput = document.getElementById('image-file');
+        const previewContainer = document.getElementById('image-preview');
+        const previewImg = document.getElementById('preview-img');
+        const imagePromptInput = document.getElementById('image-prompt');
+        const imageModelQuality = document.getElementById('image-model-quality');
+        const imageStreamCheckbox = document.getElementById('image-stream-checkbox');
+        const analyzeBtn = document.getElementById('analyze-btn');
+        const stopAnalyzeBtn = document.getElementById('stop-analyze-btn');
+        const clearImageBtn = document.getElementById('clear-image-btn');
+        const imageResult = document.getElementById('image-result');
+        const imageLoading = document.getElementById('image-loading');
+        const imageError = document.getElementById('image-error');
+        const imageStatus = document.getElementById('image-status');
+        const closeDialogBtn = document.getElementById('close-dialog-btn');
+        
+        // Fechar o dialog quando o botu00e3o de fechar for clicado
+        closeDialogBtn.addEventListener('click', () => {
+            document.getElementById('request-info-dialog').style.display = 'none';
+        });
+        
+        // Variu00e1veis para controle da anu00e1lise
+        let currentConnectionId = null;
+        let isAnalyzing = false;
+        
+        // Alternar entre as abas
+        tabUrlImage.addEventListener('click', () => {
+            tabUrlImage.classList.add('active');
+            tabUploadImage.classList.remove('active');
+            contentUrlImage.classList.add('active');
+            contentUploadImage.classList.remove('active');
+        });
+        
+        tabUploadImage.addEventListener('click', () => {
+            tabUrlImage.classList.remove('active');
+            tabUploadImage.classList.add('active');
+            contentUrlImage.classList.remove('active');
+            contentUploadImage.classList.add('active');
+        });
+        
+        // Pru00e9-visualizau00e7u00e3o da imagem
+        imageFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    previewImg.src = e.target.result;
+                    previewContainer.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            } else {
+                previewContainer.style.display = 'none';
+            }
+        });
+        
+        // Limpar o resultado
+        clearImageBtn.addEventListener('click', () => {
+            imageResult.innerHTML = '';
+            imageError.textContent = '';
+            imageStatus.textContent = '';
+        });
+        
+        // Funu00e7u00e3o para processar streaming via EventSource
+        function processEventStream(url, resultElement, loadingElement, errorElement, statusElement) {
+            // Limpar conteu00fado anterior
+            resultElement.innerHTML = '';
+            errorElement.textContent = '';
+            statusElement.textContent = '';
+            
+            // Mostrar indicador de carregamento
+            loadingElement.style.display = 'block';
+            
+            // Iniciar anu00e1lise
+            isAnalyzing = true;
+            stopAnalyzeBtn.disabled = false;
+            analyzeBtn.disabled = true;
+            
+            // Criar cursor piscante
+            const cursor = document.createElement('span');
+            cursor.className = 'cursor-blink';
+            resultElement.appendChild(cursor);
+            
+            // Iniciar EventSource
+            const eventSource = new EventSource(url);
+            let accumulatedText = '';
+            
+            eventSource.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    
+                    // Se recebemos o ID de conexu00e3o
+                    if (data.status === 'conectado') {
+                        currentConnectionId = data.connectionId;
+                        statusElement.textContent = `Conexu00e3o estabelecida (ID: ${currentConnectionId})`;
+                        return;
+                    }
+                    
+                    // Se recebemos texto
+                    if (data.text) {
+                        accumulatedText += data.text;
+                        resultElement.innerHTML = accumulatedText;
+                        resultElement.appendChild(cursor);
+                    }
+                    
+                    // Se recebemos um erro
+                    if (data.error) {
+                        errorElement.textContent = `Erro: ${data.error}`;
+                        eventSource.close();
+                        loadingElement.style.display = 'none';
+                        isAnalyzing = false;
+                        stopAnalyzeBtn.disabled = true;
+                        analyzeBtn.disabled = false;
+                        currentConnectionId = null;
+                    }
+                    
+                    // Se a anu00e1lise foi concluu00edda
+                    if (data.done) {
+                        statusElement.textContent = 'Anu00e1lise concluu00edda';
+                        eventSource.close();
+                        loadingElement.style.display = 'none';
+                        isAnalyzing = false;
+                        stopAnalyzeBtn.disabled = true;
+                        analyzeBtn.disabled = false;
+                        currentConnectionId = null;
+                        
+                        // Remover o cursor piscante quando concluu00eddo
+                        if (cursor.parentNode) {
+                            cursor.parentNode.removeChild(cursor);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Erro ao processar evento:', error);
+                    errorElement.textContent = `Erro ao processar resposta: ${error.message}`;
+                }
+            };
+            
+            eventSource.onerror = function(error) {
+                console.error('Erro no EventSource:', error);
+                errorElement.textContent = 'Erro na conexu00e3o com o servidor';
+                eventSource.close();
+                loadingElement.style.display = 'none';
+                isAnalyzing = false;
+                stopAnalyzeBtn.disabled = true;
+                analyzeBtn.disabled = false;
+                currentConnectionId = null;
+                
+                // Remover o cursor piscante em caso de erro
+                if (cursor.parentNode) {
+                    cursor.parentNode.removeChild(cursor);
+                }
+            };
+            
+            // Retornar o EventSource para possu00edvel cancelamento
+            return eventSource;
+        }
+        
+        // Analisar imagem
+        analyzeBtn.addEventListener('click', async () => {
+            // Determinar a fonte da imagem (URL ou arquivo)
+            let imageUrl = '';
+            let imageBase64 = '';
+            const isUrlTab = tabUrlImage.classList.contains('active');
+
+            if (isUrlTab) {
+                imageUrl = imageUrlInput.value.trim();
+                if (!imageUrl) {
+                    imageError.textContent = 'Por favor, insira a URL da imagem.';
+                    return;
+                }
+            } else {
+                // Modo de upload de arquivo
+                const file = imageFileInput.files[0];
+                if (!file) {
+                    imageError.textContent = 'Por favor, selecione uma imagem para upload.';
+                    return;
+                }
+
+                // Converter a imagem para base64
+                try {
+                    imageBase64 = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(file);
+                    });
+                } catch (error) {
+                    imageError.textContent = 'Erro ao processar a imagem: ' + error.message;
+                    return;
+                }
+            }
+
+            const prompt = imagePromptInput.value.trim();
+            const modelQuality = imageModelQuality.value;
+            const streaming = imageStreamCheckbox.checked;
+            
+            if (!streaming) {
+                imageError.textContent = 'Streaming u00e9 necessu00e1rio para demonstrar a interrupu00e7u00e3o. Por favor, marque a opu00e7u00e3o "Usar streaming".';
+                return;
+            }
+            
+            // Construir URL para a API com paru00e2metros GET para EventSource
+            let apiUrl = '/ai/analyze-image?streaming=true';
+            
+            if (prompt) {
+                apiUrl += `&prompt=${encodeURIComponent(prompt)}`;
+            }
+            
+            if (modelQuality) {
+                apiUrl += `&model=${modelQuality}`;
+            }
+            
+            if (imageUrl) {
+                apiUrl += `&imageUrl=${encodeURIComponent(imageUrl)}`;
+            } else if (imageBase64) {
+                // Para base64, usamos POST em vez de GET devido ao tamanho
+                // Mas para este exemplo, vamos usar GET com um limite de tamanho
+                const truncatedBase64 = imageBase64;
+                apiUrl += `&imageBase64=${encodeURIComponent(truncatedBase64)}`;
+            }
+            
+            // Processar com EventSource
+            processEventStream(apiUrl, imageResult, imageLoading, imageError, imageStatus);
+        });
+        
+        // Interromper anu00e1lise
+        stopAnalyzeBtn.addEventListener('click', async () => {
+            if (!currentConnectionId) {
+                imageError.textContent = 'Nenhuma anu00e1lise em andamento para interromper';
+                return;
+            }
+            
+            try {
+                // Chamar a API para interromper a anu00e1lise
+                const response = await fetch(`/ai/stop-generation?connectionId=${currentConnectionId}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    imageStatus.textContent = 'Anu00e1lise interrompida pelo usuu00e1rio';
+                } else {
+                    imageError.textContent = `Erro ao interromper anu00e1lise: ${data.message}`;
+                }
+            } catch (error) {
+                console.error('Erro ao interromper anu00e1lise:', error);
+                imageError.textContent = `Erro ao interromper anu00e1lise: ${error.message}`;
+            }
+        });
+        
+        // Inicializar a pu00e1gina
+        document.addEventListener('DOMContentLoaded', () => {
+            // Configurau00e7u00f5es iniciais
+            imageStreamCheckbox.checked = true; // Garantir que streaming esteja ativado por padru00e3o
+        });
+    </script>
+</body>
+</html>

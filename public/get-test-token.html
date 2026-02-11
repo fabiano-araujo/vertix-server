@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Obter Token de Teste - AbacatePay</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+            background-color: #f9f9f9;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        h1 {
+            color: #4CAF50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            display: block;
+            width: 100%;
+            margin-top: 20px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f5f5f5;
+            display: none;
+        }
+        .token-box {
+            background-color: #e9f7ef;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 15px;
+            font-family: monospace;
+            font-size: 14px;
+            word-break: break-all;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+        .error {
+            color: #d32f2f;
+            font-weight: 600;
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #ffebee;
+            border-radius: 5px;
+            display: none;
+        }
+        .copy-button {
+            background-color: #607D8B;
+            padding: 8px 15px;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .copy-button:hover {
+            background-color: #455A64;
+        }
+        .links {
+            margin-top: 30px;
+            text-align: center;
+        }
+        .links a {
+            color: #2196F3;
+            text-decoration: none;
+            margin: 0 10px;
+        }
+        .links a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Obter Token de Teste</h1>
+        
+        <div id="token-form">
+            <div class="form-group">
+                <label for="user-id">ID do Usuário (opcional)</label>
+                <input type="number" id="user-id" value="1" min="1">
+            </div>
+            
+            <button id="generate-token">Gerar Token de Teste</button>
+        </div>
+        
+        <div class="loading" id="loading">
+            Processando, por favor aguarde...
+        </div>
+        
+        <div class="error" id="error-message"></div>
+        
+        <div class="result" id="result">
+            <h2>Token Gerado</h2>
+            
+            <div>
+                <h3>Copie o token abaixo:</h3>
+                <div class="token-box" id="token-value"></div>
+                <button class="copy-button" id="copy-token">Copiar Token</button>
+            </div>
+            
+            <div class="links">
+                <a href="pix-payment-test.html">Ir para a página de teste de pagamento</a>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Elementos DOM
+            const generateTokenButton = document.getElementById('generate-token');
+            const copyTokenButton = document.getElementById('copy-token');
+            const tokenForm = document.getElementById('token-form');
+            const loadingElement = document.getElementById('loading');
+            const resultElement = document.getElementById('result');
+            const errorElement = document.getElementById('error-message');
+            const tokenValueElement = document.getElementById('token-value');
+            
+            // Evento para gerar token
+            generateTokenButton.addEventListener('click', async () => {
+                // Limpar mensagens anteriores
+                errorElement.style.display = 'none';
+                resultElement.style.display = 'none';
+                
+                try {
+                    // Obter valor do ID
+                    const userId = parseInt(document.getElementById('user-id').value) || 1;
+                    
+                    // Mostrar loading
+                    loadingElement.style.display = 'block';
+                    tokenForm.style.opacity = '0.5';
+                    generateTokenButton.disabled = true;
+                    
+                    // Fazer requisição para a API
+                    const response = await fetch('http://localhost:3000/auth/test-token', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ userId })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    // Esconder loading
+                    loadingElement.style.display = 'none';
+                    tokenForm.style.opacity = '1';
+                    generateTokenButton.disabled = false;
+                    
+                    if (!response.ok) {
+                        throw new Error(data.message || 'Erro ao gerar token de teste');
+                    }
+                    
+                    // Processar resposta bem-sucedida
+                    const token = data.token;
+                    
+                    // Atualizar a interface
+                    tokenValueElement.textContent = token;
+                    resultElement.style.display = 'block';
+                    
+                    // Armazenar token no localStorage para uso na página de pagamento
+                    localStorage.setItem('authToken', token);
+                    
+                } catch (error) {
+                    // Mostrar erro
+                    errorElement.textContent = error.message || 'Ocorreu um erro ao processar sua solicitação';
+                    errorElement.style.display = 'block';
+                    
+                    // Esconder loading
+                    loadingElement.style.display = 'none';
+                    tokenForm.style.opacity = '1';
+                    generateTokenButton.disabled = false;
+                }
+            });
+            
+            // Evento para copiar token
+            copyTokenButton.addEventListener('click', () => {
+                const token = tokenValueElement.textContent;
+                
+                if (token) {
+                    navigator.clipboard.writeText(token)
+                        .then(() => {
+                            const originalText = copyTokenButton.textContent;
+                            copyTokenButton.textContent = 'Copiado!';
+                            setTimeout(() => {
+                                copyTokenButton.textContent = originalText;
+                            }, 2000);
+                        })
+                        .catch(err => {
+                            console.error('Erro ao copiar:', err);
+                        });
+                }
+            });
+        });
+    </script>
+</body>
+</html> 

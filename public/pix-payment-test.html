@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Pagamento Pix - AbacatePay</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+            background-color: #f9f9f9;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        h1 {
+            color: #4CAF50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            display: block;
+            width: 100%;
+            margin-top: 20px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f5f5f5;
+            display: none;
+        }
+        .qrcode-container {
+            text-align: center;
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+        .qrcode-image {
+            max-width: 200px;
+            margin: 0 auto;
+        }
+        .pix-key {
+            background-color: #e9f7ef;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 15px;
+            font-family: monospace;
+            font-size: 14px;
+            word-break: break-all;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+        .error {
+            color: #d32f2f;
+            font-weight: 600;
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #ffebee;
+            border-radius: 5px;
+            display: none;
+        }
+        .status-button {
+            background-color: #2196F3;
+            margin-top: 15px;
+        }
+        .status-button:hover {
+            background-color: #0b7dda;
+        }
+        .payment-status {
+            font-weight: bold;
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .status-pending {
+            background-color: #FFF3E0;
+            color: #E65100;
+        }
+        .status-completed {
+            background-color: #E8F5E9;
+            color: #2E7D32;
+        }
+        .copy-button {
+            background-color: #607D8B;
+            padding: 8px 15px;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .copy-button:hover {
+            background-color: #455A64;
+        }
+        .auth-section {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        #expiracao-info {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #e8f4fd;
+            border-radius: 5px;
+            color: #0277bd;
+            text-align: center;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Pagamento via Pix - AbacatePay</h1>
+        
+        <div class="auth-section">
+            <h2>Autenticação</h2>
+            <div class="form-group">
+                <label for="auth-token">Token de Autenticação (JWT)</label>
+                <input type="text" id="auth-token" placeholder="Cole aqui seu token JWT obtido após fazer login">
+            </div>
+            <p><small>Depois de fazer login, copie o token JWT e cole no campo acima.</small></p>
+        </div>
+        
+        <div id="payment-form">
+            <h2>Detalhes do Pagamento</h2>
+            <div class="form-group">
+                <label for="valor">Valor (R$)</label>
+                <input type="number" id="valor" step="0.01" min="0.01" value="100.00" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="descricao">Descrição (opcional)</label>
+                <textarea id="descricao" rows="2" placeholder="Descreva o motivo do pagamento">Pagamento teste de R$100,00</textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="nome">Nome do Pagador (opcional)</label>
+                <input type="text" id="nome" placeholder="Nome completo">
+            </div>
+            
+            <div class="form-group">
+                <label for="email">Email do Pagador (opcional)</label>
+                <input type="email" id="email" placeholder="email@exemplo.com">
+            </div>
+            
+            <div class="form-group">
+                <label for="cpf_cnpj">CPF/CNPJ do Pagador (opcional)</label>
+                <input type="text" id="cpf_cnpj" placeholder="Apenas números">
+            </div>
+            
+            <div class="form-group">
+                <label for="celular">Celular (opcional)</label>
+                <input type="text" id="celular" placeholder="Apenas números">
+            </div>
+            
+            <button id="generate-pix">Gerar Cobrança Pix</button>
+        </div>
+        
+        <div class="loading" id="loading">
+            Processando, por favor aguarde...
+        </div>
+        
+        <div class="error" id="error-message"></div>
+        
+        <div class="result" id="result">
+            <h2>Cobrança Pix Gerada</h2>
+            
+            <div class="qrcode-container">
+                <div id="qrcode-image" class="qrcode-image"></div>
+                <p>Escaneie o QR Code acima com o app do seu banco</p>
+            </div>
+            
+            <div>
+                <h3>Pix Copia e Cola:</h3>
+                <div class="pix-key" id="pix-key"></div>
+                <button class="copy-button" id="copy-pix">Copiar código Pix</button>
+            </div>
+            
+            <div class="payment-status status-pending" id="payment-status">
+                Status: Aguardando pagamento
+            </div>
+            
+            <button class="status-button" id="check-status">Verificar Status do Pagamento</button>
+            
+            <div id="expiracao-info"></div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Elementos DOM
+            const generatePixButton = document.getElementById('generate-pix');
+            const checkStatusButton = document.getElementById('check-status');
+            const copyPixButton = document.getElementById('copy-pix');
+            const paymentForm = document.getElementById('payment-form');
+            const loadingElement = document.getElementById('loading');
+            const resultElement = document.getElementById('result');
+            const errorElement = document.getElementById('error-message');
+            const pixKeyElement = document.getElementById('pix-key');
+            const qrcodeImageElement = document.getElementById('qrcode-image');
+            const paymentStatusElement = document.getElementById('payment-status');
+            const authTokenInput = document.getElementById('auth-token');
+            
+            // Variáveis para armazenar dados da transação
+            let currentTxId = '';
+            
+            // Restaurar token armazenado localmente, se existir
+            const savedToken = localStorage.getItem('authToken');
+            if (savedToken) {
+                authTokenInput.value = savedToken;
+            }
+            
+            // Salvar token quando alterado
+            authTokenInput.addEventListener('change', () => {
+                localStorage.setItem('authToken', authTokenInput.value);
+            });
+            
+            // Evento para gerar cobrança Pix
+            generatePixButton.addEventListener('click', async () => {
+                // Limpar mensagens anteriores
+                errorElement.style.display = 'none';
+                resultElement.style.display = 'none';
+                
+                // Obter token de autenticação
+                const authToken = authTokenInput.value.trim();
+                if (!authToken) {
+                    errorElement.textContent = 'Você precisa inserir um token de autenticação válido';
+                    errorElement.style.display = 'block';
+                    return;
+                }
+                
+                try {
+                    // Obter valores do formulário
+                    const valor = parseFloat(document.getElementById('valor').value);
+                    const descricao = document.getElementById('descricao').value;
+                    const nome = document.getElementById('nome').value;
+                    const email = document.getElementById('email').value;
+                    const cpf_cnpj = document.getElementById('cpf_cnpj').value;
+                    
+                    // Validar valor
+                    if (!valor || valor <= 0) {
+                        throw new Error('O valor da cobrança é obrigatório e deve ser maior que zero');
+                    }
+                    
+                    // Mostrar loading
+                    loadingElement.style.display = 'block';
+                    paymentForm.style.opacity = '0.5';
+                    generatePixButton.disabled = true;
+                    
+                    // Fazer requisição para a API
+                    const response = await fetch('http://localhost:3000/pix/charge', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${authToken}`
+                        },
+                        body: JSON.stringify({
+                            valor,
+                            descricao,
+                            nome,
+                            email,
+                            cpf_cnpj,
+                            celular: document.getElementById('celular')?.value || undefined,
+                            expiracao: 3600 // 1 hora em segundos
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    // Esconder loading
+                    loadingElement.style.display = 'none';
+                    paymentForm.style.opacity = '1';
+                    generatePixButton.disabled = false;
+                    
+                    if (!response.ok) {
+                        throw new Error(data.message || 'Erro ao gerar cobrança Pix');
+                    }
+                    
+                    // Processar resposta bem-sucedida
+                    currentTxId = data.data.txid;
+                    const pixCopyPaste = data.data.pixCopiaECola;
+                    const qrCodeImageUrl = data.data.qrcode.imagemQrcode;
+                    
+                    // Atualizar a interface
+                    pixKeyElement.textContent = pixCopyPaste;
+                    
+                    // Verificar se a imagem do QR code é uma string base64
+                    if (qrCodeImageUrl && qrCodeImageUrl.startsWith('data:image')) {
+                        qrcodeImageElement.innerHTML = `<img src="${qrCodeImageUrl}" alt="QR Code Pix" width="200">`;
+                    } else if (qrCodeImageUrl) {
+                        // Se não for base64, adicionar o prefixo para criar uma imagem base64
+                        qrcodeImageElement.innerHTML = `<img src="data:image/png;base64,${qrCodeImageUrl}" alt="QR Code Pix" width="200">`;
+                    } else {
+                        qrcodeImageElement.innerHTML = `<p>QR Code não disponível</p>`;
+                    }
+                    
+                    // Mostrar informação de validade
+                    const expiracaoSegundos = data.data.calendario?.expiracao || 3600;
+                    const dataExpiracao = new Date(Date.now() + expiracaoSegundos * 1000);
+                    const expiraEmTexto = `Válido até ${dataExpiracao.toLocaleDateString()} às ${dataExpiracao.toLocaleTimeString()}`;
+                    document.getElementById('expiracao-info').textContent = expiraEmTexto;
+                    
+                    resultElement.style.display = 'block';
+                    
+                    // Atualizar status inicial - mapear status da API para a interface
+                    const statusMap = {
+                        'PENDING': 'Aguardando pagamento',
+                        'PAID': 'Pagamento confirmado!',
+                        'COMPLETED': 'Pagamento confirmado!',
+                        'ATIVA': 'Aguardando pagamento',
+                        'CONCLUIDA': 'Pagamento confirmado!'
+                    };
+                    
+                    const statusText = statusMap[data.data.status] || data.data.status;
+                    updatePaymentStatus(statusText);
+                    
+                    // Iniciar verificação periódica
+                    setTimeout(checkPaymentStatus, 5000);
+                    
+                } catch (error) {
+                    // Mostrar erro
+                    errorElement.textContent = error.message || 'Ocorreu um erro ao processar sua solicitação';
+                    errorElement.style.display = 'block';
+                    
+                    // Esconder loading
+                    loadingElement.style.display = 'none';
+                    paymentForm.style.opacity = '1';
+                    generatePixButton.disabled = false;
+                }
+            });
+            
+            // Função para verificar status do pagamento
+            async function checkPaymentStatus() {
+                if (!currentTxId) return;
+                
+                const authToken = authTokenInput.value.trim();
+                if (!authToken) return;
+                
+                try {
+                    const response = await fetch(`http://localhost:3000/pix/charge/${currentTxId}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${authToken}`
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        updatePaymentStatus(data.data.status);
+                    }
+                } catch (error) {
+                    console.error('Erro ao verificar status:', error);
+                }
+            }
+            
+            // Evento para verificar status manualmente
+            checkStatusButton.addEventListener('click', checkPaymentStatus);
+            
+            // Evento para copiar código Pix
+            copyPixButton.addEventListener('click', () => {
+                const pixKey = pixKeyElement.textContent;
+                
+                if (pixKey) {
+                    navigator.clipboard.writeText(pixKey)
+                        .then(() => {
+                            const originalText = copyPixButton.textContent;
+                            copyPixButton.textContent = 'Copiado!';
+                            setTimeout(() => {
+                                copyPixButton.textContent = originalText;
+                            }, 2000);
+                        })
+                        .catch(err => {
+                            console.error('Erro ao copiar:', err);
+                        });
+                }
+            });
+            
+            // Função para atualizar o status de pagamento na interface
+            function updatePaymentStatus(status) {
+                if (status === 'CONCLUIDA' || status === 'PAID' || status === 'COMPLETED' || 
+                    status === 'Pagamento confirmado!') {
+                    paymentStatusElement.textContent = 'Status: Pagamento confirmado!';
+                    paymentStatusElement.classList.remove('status-pending');
+                    paymentStatusElement.classList.add('status-completed');
+                } else {
+                    paymentStatusElement.textContent = `Status: ${status || 'Aguardando pagamento'}`;
+                }
+            }
+        });
+    </script>
+</body>
+</html> 

@@ -1,0 +1,610 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2025-04-03T22:00:00.000Z",
+  "__export_source": "insomnia.desktop.app:v2025.2.0",
+  "resources": [
+    {
+      "_id": "req_root",
+      "parentId": "wrk_telegram_api",
+      "modified": 1712077200000,
+      "created": 1712077200000,
+      "url": "{{ _.base_url }}",
+      "name": "API Root",
+      "description": "",
+      "method": "GET",
+      "body": {},
+      "parameters": [],
+      "headers": [],
+      "authentication": {},
+      "metaSortKey": -1712077200000,
+      "_type": "request"
+    },
+    {
+      "_id": "wrk_telegram_api",
+      "parentId": null,
+      "modified": 1712077200000,
+      "created": 1712077200000,
+      "name": "API Telegram",
+      "description": "API para interagir com o Telegram usando a MTProto API e gerenciar usuários",
+      "scope": "collection",
+      "_type": "workspace"
+    },
+    {
+      "_id": "req_start_auth",
+      "parentId": "fld_telegram_auth",
+      "modified": 1712077200000,
+      "created": 1712077200000,
+      "url": "{{ _.base_url }}/telegram/auth/start",
+      "name": "Iniciar Autenticação",
+      "description": "Inicia o processo de autenticação enviando um código para o telefone",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n\t\"phoneNumber\": \"+5584981314064\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "id": "pair_start_auth_content_type"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1712077200000,
+      "_type": "request"
+    },
+    {
+      "_id": "fld_telegram_auth",
+      "parentId": "wrk_telegram_api",
+      "modified": 1712077200000,
+      "created": 1712077200000,
+      "name": "Telegram",
+      "description": "Endpoints relacionados à autenticação e uso do Telegram",
+      "environment": {},
+      "environmentPropertyOrder": null,
+      "metaSortKey": -1712077200000,
+      "_type": "request_group"
+    },
+    {
+      "_id": "req_complete_auth",
+      "parentId": "fld_telegram_auth",
+      "modified": 1712077200000,
+      "created": 1712077200000,
+      "url": "{{ _.base_url }}/telegram/auth/complete",
+      "name": "Completar Autenticação",
+      "description": "Completa o processo de autenticação com o código recebido",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n\t\"phoneNumber\": \"+5584981314064\",\n\t\"code\": \"12345\",\n\t\"phoneCodeHash\": \"{% response 'body', 'req_start_auth', '$.phoneCodeHash', 'never', 60 %}\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "id": "pair_complete_auth_content_type"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1712077199000,
+      "_type": "request"
+    },
+    {
+      "_id": "req_get_dialogs",
+      "parentId": "fld_telegram_messages",
+      "modified": 1712077200000,
+      "created": 1712077200000,
+      "url": "{{ _.base_url }}/telegram/dialogs",
+      "name": "Obter Diálogos/Grupos",
+      "description": "Obtém a lista de diálogos/chats/grupos do usuário",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n\t\"limit\": 100,\n\t\"sessionString\": \"{% response 'body', 'req_complete_auth', '$.sessionString', 'never', 60 %}\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "id": "pair_get_dialogs_content_type"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{% response 'body', 'req_user_login', '$.token', 'never', 60 %}"
+      },
+      "metaSortKey": -1712077200000,
+      "_type": "request"
+    },
+    {
+      "_id": "fld_telegram_messages",
+      "parentId": "fld_telegram_auth",
+      "modified": 1712077200000,
+      "created": 1712077200000,
+      "name": "Mensagens",
+      "description": "Endpoints relacionados às mensagens e diálogos do Telegram",
+      "environment": {},
+      "environmentPropertyOrder": null,
+      "metaSortKey": -1712077100000,
+      "_type": "request_group"
+    },
+    {
+      "_id": "req_get_messages",
+      "parentId": "fld_telegram_messages",
+      "modified": 1712077200000,
+      "created": 1712077200000,
+      "url": "{{ _.base_url }}/telegram/messages",
+      "name": "Obter Mensagens do Grupo",
+      "description": "Obtém as mensagens de um grupo ou chat específico.\n\nParâmetros de paginação disponíveis:\n- limit: número de mensagens por página (máximo 1000)\n- page: número da página (inicia em 1)\n- offsetId: ID opcional de uma mensagem para iniciar a paginação a partir dela\n\nA resposta inclui metadados de paginação com indicadores para próxima e página anterior.",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n\t\"chatId\": \"username_ou_id_do_grupo\",\n\t\"limit\": 20,\n\t\"page\": 1,\n\t\"sessionString\": \"{% response 'body', 'req_complete_auth', '$.sessionString', 'never', 60 %}\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "id": "pair_get_messages_content_type"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{% response 'body', 'req_user_login', '$.token', 'never', 60 %}"
+      },
+      "metaSortKey": -1712077199000,
+      "_type": "request"
+    },
+    {
+      "_id": "req_get_messages_next_page",
+      "parentId": "fld_telegram_messages",
+      "modified": 1712077200000,
+      "created": 1712077200000,
+      "url": "{{ _.base_url }}/telegram/messages",
+      "name": "Obter Próxima Página de Mensagens",
+      "description": "Obtém a próxima página de mensagens usando a paginação por número de página.\n\nEste método usa o parâmetro 'page' para navegar sequencialmente pelas páginas de mensagens.",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n\t\"chatId\": \"username_ou_id_do_grupo\",\n\t\"limit\": 20,\n\t\"page\": 2,\n\t\"sessionString\": \"{% response 'body', 'req_complete_auth', '$.sessionString', 'never', 60 %}\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "id": "pair_get_messages_next_page_content_type"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{% response 'body', 'req_user_login', '$.token', 'never', 60 %}"
+      },
+      "metaSortKey": -1712077198500,
+      "_type": "request"
+    },
+    {
+      "_id": "req_get_messages_with_offset",
+      "parentId": "fld_telegram_messages",
+      "modified": 1712077200000,
+      "created": 1712077200000,
+      "url": "{{ _.base_url }}/telegram/messages",
+      "name": "Obter Mensagens por OffsetId",
+      "description": "Obtém mensagens a partir de um ID específico usando a paginação por offsetId.\n\nEste método utiliza o ID de uma mensagem específica (obtido da resposta anterior) para buscar mensagens a partir dela. É mais preciso que a paginação por página para chats com atividade frequente.",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n\t\"chatId\": \"username_ou_id_do_grupo\",\n\t\"limit\": 20,\n\t\"offsetId\": \"{% response 'body', 'req_get_messages', '$.pagination.nextOffsetId', 'never', 60 %}\",\n\t\"sessionString\": \"{% response 'body', 'req_complete_auth', '$.sessionString', 'never', 60 %}\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "id": "pair_get_messages_with_offset_content_type"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{% response 'body', 'req_user_login', '$.token', 'never', 60 %}"
+      },
+      "metaSortKey": -1712077198000,
+      "_type": "request"
+    },
+    {
+      "_id": "req_disconnect",
+      "parentId": "fld_telegram_auth",
+      "modified": 1712077200000,
+      "created": 1712077200000,
+      "url": "{{ _.base_url }}/telegram/disconnect",
+      "name": "Desconectar Cliente",
+      "description": "Desconecta o cliente Telegram",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "id": "pair_disconnect_content_type"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{% response 'body', 'req_user_login', '$.token', 'never', 60 %}"
+      },
+      "metaSortKey": -1712077198000,
+      "_type": "request"
+    },
+    {
+      "_id": "fld_user_auth",
+      "parentId": "wrk_telegram_api",
+      "modified": 1712077200000,
+      "created": 1712077200000,
+      "name": "Usuários",
+      "description": "Endpoints relacionados à autenticação e gerenciamento de usuários da plataforma",
+      "environment": {},
+      "environmentPropertyOrder": null,
+      "metaSortKey": -1712077100000,
+      "_type": "request_group"
+    },
+    {
+      "_id": "req_user_register",
+      "parentId": "fld_user_auth",
+      "modified": 1712077200000,
+      "created": 1712077200000,
+      "url": "{{ _.base_url }}/auth/registro",
+      "name": "Registrar Novo Usuário",
+      "description": "Registra um novo usuário na plataforma",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n\t\"nome\": \"João Silva\",\n\t\"email\": \"joao.silva@exemplo.com\",\n\t\"senha\": \"senha123\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "id": "pair_user_register_content_type"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1712077200000,
+      "_type": "request"
+    },
+    {
+      "_id": "req_user_login",
+      "parentId": "fld_user_auth",
+      "modified": 1712077200000,
+      "created": 1712077200000,
+      "url": "{{ _.base_url }}/auth/login",
+      "name": "Login de Usuário",
+      "description": "Faz login na plataforma usando email e senha",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n\t\"email\": \"joao.silva@exemplo.com\",\n\t\"senha\": \"senha123\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "id": "pair_user_login_content_type"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1712077199000,
+      "_type": "request"
+    },
+    {
+      "_id": "req_google_login",
+      "parentId": "fld_user_auth",
+      "modified": 1712077200000,
+      "created": 1712077200000,
+      "url": "{{ _.base_url }}/auth/google",
+      "name": "Login com Google",
+      "description": "Faz login/registro usando credenciais do Google",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n\t\"email\": \"joao.silva@gmail.com\",\n\t\"name\": \"João Silva\",\n\t\"googleId\": \"109876543210987654321\",\n\t\"picture\": \"https://lh3.googleusercontent.com/foto/do-usuario\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "id": "pair_google_login_content_type"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1712077198000,
+      "_type": "request"
+    },
+    {
+      "_id": "fld_user_management",
+      "parentId": "wrk_telegram_api",
+      "modified": 1712077200000,
+      "created": 1712077200000,
+      "name": "Gerenciamento de Usuários",
+      "description": "Endpoints para gerenciar usuários da plataforma",
+      "environment": {},
+      "environmentPropertyOrder": null,
+      "metaSortKey": -1712077050000,
+      "_type": "request_group"
+    },
+    {
+      "_id": "req_user_create",
+      "parentId": "fld_user_management",
+      "modified": 1712077200000,
+      "created": 1712077200000,
+      "url": "{{ _.base_url }}/user",
+      "name": "Criar Usuário",
+      "description": "Cria um novo usuário na plataforma (rota administrativa)",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n\t\"name\": \"Ana Souza\",\n\t\"email\": \"ana.souza@exemplo.com\",\n\t\"password\": \"senha456\",\n\t\"accountType\": \"premium\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "id": "pair_user_create_content_type"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{% response 'body', 'req_user_login', '$.token', 'never', 60 %}"
+      },
+      "metaSortKey": -1712077200000,
+      "_type": "request"
+    },
+    {
+      "_id": "req_user_get_by_id",
+      "parentId": "fld_user_management",
+      "modified": 1712077200000,
+      "created": 1712077200000,
+      "url": "{{ _.base_url }}/user/1",
+      "name": "Buscar Usuário por ID",
+      "description": "Busca um usuário pelo seu ID",
+      "method": "GET",
+      "parameters": [],
+      "headers": [],
+      "authentication": {
+        "type": "bearer",
+        "token": "{% response 'body', 'req_user_login', '$.token', 'never', 60 %}"
+      },
+      "metaSortKey": -1712077199000,
+      "_type": "request"
+    },
+    {
+      "_id": "req_users_list",
+      "parentId": "fld_user_management",
+      "modified": 1712077200000,
+      "created": 1712077200000,
+      "url": "{{ _.base_url }}/users",
+      "name": "Listar Usuários",
+      "description": "Lista todos os usuários com paginação",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "offset",
+          "value": "0",
+          "id": "param_offset"
+        },
+        {
+          "name": "limit",
+          "value": "10",
+          "id": "param_limit"
+        }
+      ],
+      "headers": [],
+      "authentication": {
+        "type": "bearer",
+        "token": "{% response 'body', 'req_user_login', '$.token', 'never', 60 %}"
+      },
+      "metaSortKey": -1712077198000,
+      "_type": "request"
+    },
+    {
+      "_id": "req_user_delete",
+      "parentId": "fld_user_management",
+      "modified": 1712077200000,
+      "created": 1712077200000,
+      "url": "{{ _.base_url }}/user/1",
+      "name": "Deletar Usuário",
+      "description": "Deleta um usuário pelo seu ID",
+      "method": "DELETE",
+      "parameters": [],
+      "headers": [],
+      "authentication": {
+        "type": "bearer",
+        "token": "{% response 'body', 'req_user_login', '$.token', 'never', 60 %}"
+      },
+      "metaSortKey": -1712077197000,
+      "_type": "request"
+    },
+    {
+      "_id": "fld_subscription",
+      "parentId": "wrk_telegram_api",
+      "modified": 1712259600000,
+      "created": 1712259600000,
+      "name": "Assinaturas",
+      "description": "Endpoints relacionados a assinaturas premium e pagamentos",
+      "environment": {},
+      "environmentPropertyOrder": null,
+      "metaSortKey": -1712077150000,
+      "_type": "request_group"
+    },
+    {
+      "_id": "req_check_subscription_status",
+      "parentId": "fld_subscription",
+      "modified": 1712259600000,
+      "created": 1712259600000,
+      "url": "{{ _.base_url }}/subscription/status/{% response 'body', 'req_user_login', '$.user.id', 'never', 60 %}",
+      "name": "Verificar Status de Assinatura",
+      "description": "Verifica se o usuário tem uma assinatura premium ativa e retorna detalhes sobre ela",
+      "method": "GET",
+      "body": {},
+      "parameters": [],
+      "headers": [],
+      "authentication": {
+        "type": "bearer",
+        "token": "{% response 'body', 'req_user_login', '$.token', 'never', 60 %}"
+      },
+      "metaSortKey": -1712077200000,
+      "_type": "request"
+    },
+    {
+      "_id": "req_get_subscription_config",
+      "parentId": "fld_subscription",
+      "modified": 1712259600000,
+      "created": 1712259600000,
+      "url": "{{ _.base_url }}/subscription/config/{% response 'body', 'req_user_login', '$.user.id', 'never', 60 %}",
+      "name": "Obter Configuração de Assinatura",
+      "description": "Obtém informações detalhadas sobre a assinatura do usuário, incluindo data de expiração formatada e dias restantes",
+      "method": "GET",
+      "body": {},
+      "parameters": [],
+      "headers": [],
+      "authentication": {
+        "type": "bearer",
+        "token": "{% response 'body', 'req_user_login', '$.token', 'never', 60 %}"
+      },
+      "metaSortKey": -1712077199000,
+      "_type": "request"
+    },
+    {
+      "_id": "req_create_subscription_payment",
+      "parentId": "fld_subscription",
+      "modified": 1712259600000,
+      "created": 1712259600000,
+      "url": "{{ _.base_url }}/subscription/payment",
+      "name": "Criar Pagamento de Assinatura",
+      "description": "Cria um novo pagamento para assinatura premium e retorna o QR Code Pix para pagamento",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n\t\"userId\": {% response 'body', 'req_user_login', '$.user.id', 'never', 60 %},\n\t\"planType\": \"mensal\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "id": "pair_create_subscription_payment_content_type"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{% response 'body', 'req_user_login', '$.token', 'never', 60 %}"
+      },
+      "metaSortKey": -1712077198000,
+      "_type": "request"
+    },
+    {
+      "_id": "req_create_subscription_payment_weekly",
+      "parentId": "fld_subscription",
+      "modified": 1712259600000,
+      "created": 1712259600000,
+      "url": "{{ _.base_url }}/subscription/payment",
+      "name": "Criar Pagamento de Assinatura Semanal",
+      "description": "Cria um novo pagamento para assinatura premium semanal e retorna o QR Code Pix para pagamento",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n\t\"userId\": {% response 'body', 'req_user_login', '$.user.id', 'never', 60 %},\n\t\"planType\": \"semanal\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "id": "pair_create_subscription_payment_weekly_content_type"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{% response 'body', 'req_user_login', '$.token', 'never', 60 %}"
+      },
+      "metaSortKey": -1712077197800,
+      "_type": "request"
+    },
+    {
+      "_id": "req_create_subscription_payment_annual",
+      "parentId": "fld_subscription",
+      "modified": 1712259600000,
+      "created": 1712259600000,
+      "url": "{{ _.base_url }}/subscription/payment",
+      "name": "Criar Pagamento de Assinatura Anual",
+      "description": "Cria um novo pagamento para assinatura premium anual e retorna o QR Code Pix para pagamento",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n\t\"userId\": {% response 'body', 'req_user_login', '$.user.id', 'never', 60 %},\n\t\"planType\": \"anual\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "id": "pair_create_subscription_payment_annual_content_type"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{% response 'body', 'req_user_login', '$.token', 'never', 60 %}"
+      },
+      "metaSortKey": -1712077197600,
+      "_type": "request"
+    },
+    {
+      "_id": "req_check_payment_status",
+      "parentId": "fld_subscription",
+      "modified": 1712259600000,
+      "created": 1712259600000,
+      "url": "{{ _.base_url }}/subscription/payment/{% response 'body', 'req_create_subscription_payment', '$.data.paymentId', 'never', 60 %}",
+      "name": "Verificar Status do Pagamento",
+      "description": "Verifica o status de um pagamento de assinatura específico pelo ID",
+      "method": "GET",
+      "body": {},
+      "parameters": [],
+      "headers": [],
+      "authentication": {
+        "type": "bearer",
+        "token": "{% response 'body', 'req_user_login', '$.token', 'never', 60 %}"
+      },
+      "metaSortKey": -1712077197000,
+      "_type": "request"
+    },
+    {
+      "_id": "env_base",
+      "parentId": "wrk_telegram_api",
+      "modified": 1712077200000,
+      "created": 1712077200000,
+      "name": "Base Environment",
+      "data": {
+        "base_url": "http://localhost:3000"
+      },
+      "dataPropertyOrder": {
+        "&": ["base_url"]
+      },
+      "color": null,
+      "isPrivate": false,
+      "metaSortKey": 1712077200000,
+      "_type": "environment"
+    }
+  ]
+} 

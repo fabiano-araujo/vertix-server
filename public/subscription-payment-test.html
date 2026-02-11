@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Pagamento de Assinatura</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+            background-color: #f9f9f9;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        h1 {
+            color: #4CAF50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            display: block;
+            width: 100%;
+            margin-top: 20px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f5f5f5;
+            display: none;
+        }
+        .qrcode-container {
+            text-align: center;
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+        .qrcode-image {
+            max-width: 200px;
+            margin: 0 auto;
+        }
+        .pix-key {
+            background-color: #e9f7ef;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 15px;
+            font-family: monospace;
+            font-size: 14px;
+            word-break: break-all;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+        .error {
+            color: #d32f2f;
+            font-weight: 600;
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #ffebee;
+            border-radius: 5px;
+            display: none;
+        }
+        .status-button {
+            background-color: #2196F3;
+            margin-top: 15px;
+        }
+        .status-button:hover {
+            background-color: #0b7dda;
+        }
+        .payment-status {
+            font-weight: bold;
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .status-pending {
+            background-color: #FFF3E0;
+            color: #E65100;
+        }
+        .status-completed {
+            background-color: #E8F5E9;
+            color: #2E7D32;
+        }
+        .copy-button {
+            background-color: #607D8B;
+            padding: 8px 15px;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .copy-button:hover {
+            background-color: #455A64;
+        }
+        .auth-section {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .plan-select {
+            margin-bottom: 20px;
+        }
+        .plan-option {
+            margin-bottom: 10px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .plan-option:hover {
+            border-color: #4CAF50;
+            background-color: #f5f5f5;
+        }
+        .plan-option.selected {
+            border-color: #4CAF50;
+            background-color: #E8F5E9;
+        }
+        .plan-price {
+            font-weight: bold;
+            color: #4CAF50;
+            font-size: 18px;
+        }
+        .expiration-info {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #e8f4fd;
+            border-radius: 5px;
+            color: #0277bd;
+            text-align: center;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Assinatura Premium</h1>
+        
+        <div class="auth-section">
+            <h2>Autenticação</h2>
+            <div class="form-group">
+                <label for="auth-token">Token de Autenticação (JWT)</label>
+                <input type="text" id="auth-token" placeholder="Cole aqui seu token JWT obtido após fazer login">
+            </div>
+            <p><small>Depois de fazer login, copie o token JWT e cole no campo acima.</small></p>
+            
+            <div class="form-group">
+                <label for="user-id">ID do Usuário</label>
+                <input type="number" id="user-id" value="1" min="1">
+            </div>
+        </div>
+        
+        <div id="payment-form">
+            <h2>Escolha seu Plano</h2>
+            
+            <div class="plan-select">
+                <div class="plan-option" data-plan="semanal">
+                    <h3>Plano Semanal</h3>
+                    <p>Acesso a todas as funcionalidades premium por 7 dias.</p>
+                    <p class="plan-price">R$ 29,90</p>
+                </div>
+                
+                <div class="plan-option selected" data-plan="mensal">
+                    <h3>Plano Mensal</h3>
+                    <p>Acesso a todas as funcionalidades premium por 30 dias.</p>
+                    <p class="plan-price">R$ 99,90</p>
+                </div>
+                
+                <div class="plan-option" data-plan="anual">
+                    <h3>Plano Anual</h3>
+                    <p>Acesso a todas as funcionalidades premium por 365 dias.</p>
+                    <p class="plan-price">R$ 999,00</p>
+                    <p><small>Economize mais de 15% em relação ao plano mensal!</small></p>
+                </div>
+            </div>
+            
+            <button id="generate-payment">Gerar Pagamento</button>
+        </div>
+        
+        <div class="loading" id="loading">
+            Processando, por favor aguarde...
+        </div>
+        
+        <div class="error" id="error-message"></div>
+        
+        <div class="result" id="result">
+            <h2>Pagamento Gerado</h2>
+            
+            <div class="qrcode-container">
+                <div id="qrcode-image" class="qrcode-image"></div>
+                <p>Escaneie o QR Code acima com o app do seu banco</p>
+            </div>
+            
+            <div>
+                <h3>Pix Copia e Cola:</h3>
+                <div class="pix-key" id="pix-key"></div>
+                <button class="copy-button" id="copy-pix">Copiar código Pix</button>
+            </div>
+            
+            <div class="payment-status status-pending" id="payment-status">
+                Status: Aguardando pagamento
+            </div>
+            
+            <div class="expiration-info" id="expiration-info">
+                Pagamento válido por 24 horas
+            </div>
+            
+            <button class="status-button" id="check-status">Verificar Status do Pagamento</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Elementos DOM
+            const generatePaymentButton = document.getElementById('generate-payment');
+            const checkStatusButton = document.getElementById('check-status');
+            const copyPixButton = document.getElementById('copy-pix');
+            const paymentForm = document.getElementById('payment-form');
+            const loadingElement = document.getElementById('loading');
+            const resultElement = document.getElementById('result');
+            const errorElement = document.getElementById('error-message');
+            const pixKeyElement = document.getElementById('pix-key');
+            const qrcodeImageElement = document.getElementById('qrcode-image');
+            const paymentStatusElement = document.getElementById('payment-status');
+            const expirationInfoElement = document.getElementById('expiration-info');
+            const authTokenInput = document.getElementById('auth-token');
+            const userIdInput = document.getElementById('user-id');
+            const planOptions = document.querySelectorAll('.plan-option');
+            
+            // Variáveis para armazenar dados da transação
+            let currentPaymentId = '';
+            let selectedPlan = 'mensal'; // Plano padrão
+            
+            // Restaurar token armazenado localmente, se existir
+            const savedToken = localStorage.getItem('authToken');
+            if (savedToken) {
+                authTokenInput.value = savedToken;
+            }
+            
+            // Salvar token quando alterado
+            authTokenInput.addEventListener('change', () => {
+                localStorage.setItem('authToken', authTokenInput.value);
+            });
+            
+            // Selecionar plano
+            planOptions.forEach(option => {
+                option.addEventListener('click', () => {
+                    // Remover seleção anterior
+                    planOptions.forEach(opt => opt.classList.remove('selected'));
+                    
+                    // Adicionar seleção ao plano clicado
+                    option.classList.add('selected');
+                    
+                    // Armazenar plano selecionado
+                    selectedPlan = option.dataset.plan;
+                });
+            });
+            
+            // Evento para gerar pagamento
+            generatePaymentButton.addEventListener('click', async () => {
+                // Limpar mensagens anteriores
+                errorElement.style.display = 'none';
+                resultElement.style.display = 'none';
+                
+                // Obter token de autenticação
+                const authToken = authTokenInput.value.trim();
+                if (!authToken) {
+                    errorElement.textContent = 'Você precisa inserir um token de autenticação válido';
+                    errorElement.style.display = 'block';
+                    return;
+                }
+                
+                const userId = parseInt(userIdInput.value);
+                if (isNaN(userId) || userId <= 0) {
+                    errorElement.textContent = 'ID de usuário inválido';
+                    errorElement.style.display = 'block';
+                    return;
+                }
+                
+                try {
+                    // Mostrar loading
+                    loadingElement.style.display = 'block';
+                    paymentForm.style.opacity = '0.5';
+                    generatePaymentButton.disabled = true;
+                    
+                    // Fazer requisição para a API
+                    const response = await fetch('http://localhost:3000/subscription/payment', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${authToken}`
+                        },
+                        body: JSON.stringify({
+                            userId,
+                            planType: selectedPlan
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    // Esconder loading
+                    loadingElement.style.display = 'none';
+                    paymentForm.style.opacity = '1';
+                    generatePaymentButton.disabled = false;
+                    
+                    if (!response.ok) {
+                        throw new Error(data.message || 'Erro ao gerar pagamento');
+                    }
+                    
+                    // Processar resposta bem-sucedida
+                    currentPaymentId = data.data.paymentId;
+                    const pixCopyPaste = data.data.qrCode.copyPaste;
+                    const qrCodeImageUrl = data.data.qrCode.image;
+                    
+                    // Atualizar a interface
+                    pixKeyElement.textContent = pixCopyPaste;
+                    
+                    // Verificar se a imagem do QR code é uma string base64
+                    if (qrCodeImageUrl && qrCodeImageUrl.startsWith('data:image')) {
+                        qrcodeImageElement.innerHTML = `<img src="${qrCodeImageUrl}" alt="QR Code Pix" width="200">`;
+                    } else if (qrCodeImageUrl) {
+                        // Se não for base64, adicionar o prefixo para criar uma imagem base64
+                        qrcodeImageElement.innerHTML = `<img src="data:image/png;base64,${qrCodeImageUrl}" alt="QR Code Pix" width="200">`;
+                    } else {
+                        qrcodeImageElement.innerHTML = `<p>QR Code não disponível</p>`;
+                    }
+                    
+                    // Mostrar informação de validade
+                    expirationInfoElement.textContent = `Pagamento válido por 24 horas`;
+                    
+                    resultElement.style.display = 'block';
+                    
+                    // Iniciar verificação periódica
+                    setTimeout(checkPaymentStatus, 5000);
+                    
+                } catch (error) {
+                    // Mostrar erro
+                    errorElement.textContent = error.message || 'Ocorreu um erro ao processar sua solicitação';
+                    errorElement.style.display = 'block';
+                    
+                    // Esconder loading
+                    loadingElement.style.display = 'none';
+                    paymentForm.style.opacity = '1';
+                    generatePaymentButton.disabled = false;
+                }
+            });
+            
+            // Função para verificar status do pagamento
+            async function checkPaymentStatus() {
+                if (!currentPaymentId) {
+                    console.error('ID de pagamento não disponível');
+                    return;
+                }
+                
+                const authToken = authTokenInput.value.trim();
+                if (!authToken) {
+                    console.error('Token de autenticação não disponível');
+                    return;
+                }
+                
+                try {
+                    console.log(`Verificando status do pagamento: ${currentPaymentId}`);
+                    
+                    const response = await fetch(`http://localhost:3000/subscription/payment/${currentPaymentId}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${authToken}`
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    console.log('Resposta de verificação de status:', data);
+                    
+                    if (response.ok) {
+                        if (data && data.data) {
+                            updatePaymentStatus(data.data.status, data.data.formattedExpirationDate);
+                        } else {
+                            console.error('Resposta sem dados válidos:', data);
+                            errorElement.textContent = 'Resposta inválida do servidor';
+                            errorElement.style.display = 'block';
+                        }
+                    } else {
+                        throw new Error(data.message || 'Erro ao verificar status de pagamento');
+                    }
+                } catch (error) {
+                    console.error('Erro ao verificar status:', error);
+                    errorElement.textContent = `Erro ao verificar pagamento: ${error.message}`;
+                    errorElement.style.display = 'block';
+                }
+            }
+            
+            // Evento para verificar status manualmente
+            checkStatusButton.addEventListener('click', checkPaymentStatus);
+            
+            // Evento para copiar código Pix
+            copyPixButton.addEventListener('click', () => {
+                const pixKey = pixKeyElement.textContent;
+                
+                if (pixKey) {
+                    navigator.clipboard.writeText(pixKey)
+                        .then(() => {
+                            const originalText = copyPixButton.textContent;
+                            copyPixButton.textContent = 'Copiado!';
+                            setTimeout(() => {
+                                copyPixButton.textContent = originalText;
+                            }, 2000);
+                        })
+                        .catch(err => {
+                            console.error('Erro ao copiar:', err);
+                        });
+                }
+            });
+            
+            // Função para atualizar o status de pagamento na interface
+            function updatePaymentStatus(status, expirationDate) {
+                if (status === "ACTIVE") {
+                    paymentStatusElement.textContent = 'Status: Pagamento confirmado!';
+                    paymentStatusElement.classList.remove('status-pending');
+                    paymentStatusElement.classList.add('status-completed');
+                    
+                    if (expirationDate) {
+                        expirationInfoElement.textContent = `Assinatura válida até ${expirationDate}`;
+                    }
+                } else {
+                    paymentStatusElement.textContent = `Status: Aguardando pagamento`;
+                }
+            }
+        });
+    </script>
+</body>
+</html> 

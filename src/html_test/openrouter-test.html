@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de IA - OpenRouter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+        
+        .section {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            background-color: #f9f9f9;
+        }
+        
+        .section h2 {
+            margin-top: 0;
+            color: #444;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+        }
+        
+        input[type="text"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        
+        button {
+            background-color: #4285f4;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        button:hover {
+            background-color: #3367d6;
+        }
+        
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-height: 100px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            line-height: 1.5;
+        }
+        
+        .loading {
+            text-align: center;
+            display: none;
+            margin: 20px 0;
+        }
+        
+        .error {
+            color: #d32f2f;
+            margin-top: 10px;
+        }
+        
+        .status {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .checkbox-container {
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .checkbox-container input[type="checkbox"] {
+            margin-right: 10px;
+        }
+        
+        .model-select {
+            margin-top: 15px;
+        }
+        
+        .model-section {
+            margin-bottom: 10px;
+        }
+        
+        .model-section-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #555;
+        }
+        
+        .streaming-content {
+            font-family: monospace;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .nav-tabs {
+            display: flex;
+            list-style: none;
+            padding: 0;
+            margin: 0 0 20px 0;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .nav-tabs li {
+            margin-right: 10px;
+        }
+        
+        .nav-tabs li button {
+            background: none;
+            border: none;
+            padding: 10px 15px;
+            cursor: pointer;
+            color: #555;
+            font-size: 16px;
+            border-bottom: 3px solid transparent;
+        }
+        
+        .nav-tabs li button.active {
+            color: #4285f4;
+            border-bottom-color: #4285f4;
+        }
+        
+        .dialog-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .dialog {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 80%;
+            max-height: 80%;
+            overflow-y: auto;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        .dialog h3 {
+            margin-top: 0;
+            color: #4285f4;
+        }
+        
+        .dialog pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        
+        .dialog-buttons {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+        
+        .dialog-buttons button {
+            margin-left: 10px;
+        }
+
+        /* Estilos para as abas de URL/Upload */
+        .tabs {
+            display: flex;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .tab-button {
+            background: none;
+            border: none;
+            padding: 8px 15px;
+            margin-right: 5px;
+            cursor: pointer;
+            color: #555;
+            font-size: 14px;
+            border-bottom: 3px solid transparent;
+        }
+
+        .tab-button.active {
+            color: #4285f4;
+            border-bottom-color: #4285f4;
+            font-weight: bold;
+        }
+
+        .preview-container {
+            margin-top: 10px;
+        }
+
+        /* Estilo para o cursor piscante */
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0; }
+            100% { opacity: 1; }
+        }
+
+        .cursor-blink {
+            animation: blink 1s infinite;
+            color: #4285f4;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Teste de IA - OpenRouter</h1>
+    
+    <ul class="nav-tabs">
+        <li><button id="tab-image" class="active">Análise de Imagem</button></li>
+        <li><button id="tab-text">Geração de Texto</button></li>
+    </ul>
+    
+    <div class="container">
+        <div class="section" id="section-image">
+            <h2>Análise de Imagem</h2>
+            <p>Insira a URL de uma imagem ou faça upload de um arquivo para obter uma análise do conteúdo.</p>
+            
+            <div class="tabs">
+                <button id="tab-url-image" class="tab-button active">URL da Imagem</button>
+                <button id="tab-upload-image" class="tab-button">Upload de Imagem</button>
+            </div>
+
+            <div id="url-image-section">
+                <label for="image-url">URL da Imagem:</label>
+                <input type="text" id="image-url" placeholder="https://exemplo.com/imagem.jpg">
+            </div>
+
+            <div id="upload-image-section" style="display: none;">
+                <label for="image-file">Selecione uma imagem:</label>
+                <input type="file" id="image-file" accept="image/*">
+                <div class="preview-container" style="margin-top: 10px; display: none;">
+                    <p>Pré-visualização:</p>
+                    <img id="image-preview" style="max-width: 300px; max-height: 200px; border: 1px solid #ddd;">
+                </div>
+            </div>
+            
+            <label for="image-prompt">Prompt (Opcional):</label>
+            <textarea id="image-prompt" rows="3" placeholder="Descreva a imagem em detalhes..."></textarea>
+
+            <div class="model-select">
+                <label for="image-model-quality">Qualidade da Análise:</label>
+                <select id="image-model-quality">
+                    <option value="otimo">Ótimo (pega detalhes)</option>
+                    <option value="equilibrado" selected>Equilibrado</option>
+                    <option value="baixo">Baixo detalhe</option>
+                </select>
+            </div>
+            
+            <div class="checkbox-container">
+                <input type="checkbox" id="image-stream">
+                <label for="image-stream">Usar streaming (respostas em tempo real)</label>
+            </div>
+            
+            <button id="analyzeBtn">Analisar Imagem</button>
+            
+            <div class="loading" id="image-loading">Analisando imagem... (isso pode levar alguns segundos)</div>
+            <div class="error" id="image-error"></div>
+            <div class="status" id="image-status"></div>
+            
+            <div>
+                <h3>Resultado:</h3>
+                <div class="result" id="image-result"></div>
+            </div>
+        </div>
+        
+        <div class="section" id="section-text" style="display: none;">
+            <h2>Geração de Texto</h2>
+            <p>Insira um prompt e obtenha uma resposta gerada pelo modelo de IA.</p>
+            
+            <div>
+                <label for="text-prompt">Prompt:</label>
+                <textarea id="text-prompt" rows="4" placeholder="Digite seu prompt aqui...">Explique como funciona a inteligência artificial de forma simples.</textarea>
+            </div>
+            
+            <div class="model-select">
+                <label for="text-model-type">Tipo de Modelo:</label>
+                <select id="text-model-type">
+                    <option value="quality">Modelo Simplificado por Qualidade</option>
+                    <option value="alias">Modelo Simplificado</option>
+                    <option value="gemma">Gemma (Google)</option>
+                    <option value="claude">Claude (Anthropic)</option>
+                    <option value="mistral">Mistral AI</option>
+                </select>
+            </div>
+            
+            <div id="quality-text-models" class="model-section">
+                <div class="model-section-title">Modelos por Qualidade:</div>
+                <select id="quality-text-model">
+                    <option value="otimo">Ótimo (Mistral)</option>
+                    <option value="bom">Bom (Gemma 27B)</option>
+                    <option value="mediano">Mediano (Gemma 12B)</option>
+                    <option value="ruim">Ruim (Gemma 4B)</option>
+                </select>
+            </div>
+            
+            <div id="alias-text-models" class="model-section" style="display: none;">
+                <div class="model-section-title">Modelos Simplificados:</div>
+                <select id="alias-text-model">
+                    <option value="chat">Chat (Padrão)</option>
+                    <option value="file">Processamento de Arquivo</option>
+                    <option value="summary_en">Resumo em Inglês</option>
+                    <option value="code">Geração de Código</option>
+                </select>
+            </div>
+            
+            <div id="gemma-text-models" class="model-section" style="display: none;">
+                <div class="model-section-title">Modelos Gemma:</div>
+                <select id="text-model-gemma">
+                    <option value="google/gemma-3-27b-it">Gemma-3-27B-IT (melhor qualidade)</option>
+                    <option value="google/gemma-3-12b-it">Gemma-3-12B-IT (equilibrado)</option>
+                    <option value="google/gemma-3-4b-it">Gemma-3-4B-IT (mais rápido)</option>
+                </select>
+            </div>
+            
+            <div id="claude-text-models" class="model-section" style="display: none;">
+                <div class="model-section-title">Modelos Claude:</div>
+                <select id="text-model-claude">
+                    <option value="anthropic/claude-3-opus:beta">Claude-3-Opus (alta qualidade)</option>
+                    <option value="anthropic/claude-3-sonnet">Claude-3-Sonnet (equilibrado)</option>
+                    <option value="anthropic/claude-3-haiku">Claude-3-Haiku (rápido)</option>
+                </select>
+            </div>
+            
+            <div id="mistral-text-models" class="model-section" style="display: none;">
+                <div class="model-section-title">Modelos Mistral:</div>
+                <select id="text-model-mistral">
+                    <option value="mistralai/mistral-small-3.1-24b-instruct">Mistral-Small-3.1-24B-Instruct</option>
+                </select>
+            </div>
+            
+            <div>
+                <label for="temperature">Temperatura (0-2):</label>
+                <input type="text" id="temperature" placeholder="0.7" value="0.7">
+            </div>
+            
+            <div class="checkbox-container">
+                <input type="checkbox" id="text-stream">
+                <label for="text-stream">Usar streaming (respostas em tempo real)</label>
+            </div>
+            
+            <button id="generateBtn">Gerar Texto</button>
+            
+            <div class="loading" id="text-loading">Gerando texto... (isso pode levar alguns segundos)</div>
+            <div class="error" id="text-error"></div>
+            <div class="status" id="text-status"></div>
+            
+            <div>
+                <h3>Resultado:</h3>
+                <div class="result" id="text-result"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Dialog para mostrar informações da solicitação -->
+    <div id="request-info-dialog" class="dialog-overlay">
+        <div class="dialog">
+            <h3>Informações da Solicitação</h3>
+            <div id="request-info-content">
+                <pre id="request-info-details"></pre>
+            </div>
+            <div class="dialog-buttons">
+                <button id="dialog-close-btn">Fechar</button>
+                <button id="dialog-proceed-btn">Prosseguir com a Solicitação</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Base URL da API
+        const API_BASE_URL = 'http://localhost:3000';
+        
+        // Elementos da página - Dialog
+        const requestInfoDialog = document.getElementById('request-info-dialog');
+        const requestInfoDetails = document.getElementById('request-info-details');
+        const dialogCloseBtn = document.getElementById('dialog-close-btn');
+        const dialogProceedBtn = document.getElementById('dialog-proceed-btn');
+        
+        // Função para mostrar o dialog com informações da solicitação
+        const showRequestInfoDialog = (requestInfo) => {
+            // Formata as informações da solicitação
+            const formattedInfo = JSON.stringify(requestInfo, null, 2);
+            requestInfoDetails.textContent = formattedInfo;
+            
+            // Mostra o dialog
+            requestInfoDialog.style.display = 'flex';
+            
+            // Retorna uma Promise que será resolvida quando o usuário clicar em "Prosseguir"
+            return new Promise((resolve, reject) => {
+                // Handler para o botão Fechar
+                const closeHandler = () => {
+                    requestInfoDialog.style.display = 'none';
+                    dialogCloseBtn.removeEventListener('click', closeHandler);
+                    dialogProceedBtn.removeEventListener('click', proceedHandler);
+                    reject(new Error('Solicitação cancelada pelo usuário'));
+                };
+                
+                // Handler para o botão Prosseguir
+                const proceedHandler = () => {
+                    requestInfoDialog.style.display = 'none';
+                    dialogCloseBtn.removeEventListener('click', closeHandler);
+                    dialogProceedBtn.removeEventListener('click', proceedHandler);
+                    resolve();
+                };
+                
+                // Adiciona os event listeners
+                dialogCloseBtn.addEventListener('click', closeHandler);
+                dialogProceedBtn.addEventListener('click', proceedHandler);
+            });
+        };
+        
+        // Elementos da página - Abas
+        const tabImage = document.getElementById('tab-image');
+        const tabText = document.getElementById('tab-text');
+        const sectionImage = document.getElementById('section-image');
+        const sectionText = document.getElementById('section-text');
+        
+        // Elementos da página - Análise de Imagem
+        const imageUrlInput = document.getElementById('image-url');
+        const imageFileInput = document.getElementById('image-file');
+        const imagePreview = document.getElementById('image-preview');
+        const previewContainer = document.querySelector('.preview-container');
+        const tabUrlImage = document.getElementById('tab-url-image');
+        const tabUploadImage = document.getElementById('tab-upload-image');
+        const urlImageSection = document.getElementById('url-image-section');
+        const uploadImageSection = document.getElementById('upload-image-section');
+        const imagePromptInput = document.getElementById('image-prompt');
+        const imageModelQuality = document.getElementById('image-model-quality');
+        const imageStreamCheckbox = document.getElementById('image-stream');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const imageResult = document.getElementById('image-result');
+        const imageLoading = document.getElementById('image-loading');
+        const imageError = document.getElementById('image-error');
+        const imageStatus = document.getElementById('image-status');
+
+        // Elementos da página - Geração de Texto
+        const textPromptInput = document.getElementById('text-prompt');
+        const textModelType = document.getElementById('text-model-type');
+        const aliasTextModel = document.getElementById('alias-text-model');
+        const textModelGemma = document.getElementById('text-model-gemma');
+        const textModelClaude = document.getElementById('text-model-claude');
+        const textModelMistral = document.getElementById('text-model-mistral');
+        const aliasTextModels = document.getElementById('alias-text-models');
+        const gemmaTextModels = document.getElementById('gemma-text-models');
+        const claudeTextModels = document.getElementById('claude-text-models');
+        const mistralTextModels = document.getElementById('mistral-text-models');
+        const qualityTextModels = document.getElementById('quality-text-models');
+        const temperatureInput = document.getElementById('temperature');
+        const textStreamCheckbox = document.getElementById('text-stream');
+        const generateBtn = document.getElementById('generateBtn');
+        const textResult = document.getElementById('text-result');
+        const textLoading = document.getElementById('text-loading');
+        const textError = document.getElementById('text-error');
+        const textStatus = document.getElementById('text-status');
+        
+        // Definir streaming como padrão para ambos os modos
+        if (imageStreamCheckbox) {
+            imageStreamCheckbox.checked = true;
+        }
+        
+        if (textStreamCheckbox) {
+            textStreamCheckbox.checked = true;
+        }
+        
+        // Alterna entre as abas de URL e Upload de imagem
+        tabUrlImage.addEventListener('click', () => {
+            tabUrlImage.classList.add('active');
+            tabUploadImage.classList.remove('active');
+            urlImageSection.style.display = 'block';
+            uploadImageSection.style.display = 'none';
+        });
+
+        tabUploadImage.addEventListener('click', () => {
+            tabUploadImage.classList.add('active');
+            tabUrlImage.classList.remove('active');
+            uploadImageSection.style.display = 'block';
+            urlImageSection.style.display = 'none';
+        });
+
+        // Pré-visualização da imagem quando um arquivo é selecionado
+        imageFileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    imagePreview.src = e.target.result;
+                    previewContainer.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            } else {
+                previewContainer.style.display = 'none';
+            }
+        });
+        
+        // Navegação entre abas
+        tabImage.addEventListener('click', () => {
+            tabImage.classList.add('active');
+            tabText.classList.remove('active');
+            sectionImage.style.display = 'block';
+            sectionText.style.display = 'none';
+        });
+        
+        tabText.addEventListener('click', () => {
+            tabText.classList.add('active');
+            tabImage.classList.remove('active');
+            sectionText.style.display = 'block';
+            sectionImage.style.display = 'none';
+        });
+        
+        // Alternar entre tipos de modelos de texto
+        textModelType.addEventListener('change', () => {
+            if (textModelType.value === 'quality') {
+                qualityTextModels.style.display = 'block';
+                aliasTextModels.style.display = 'none';
+                gemmaTextModels.style.display = 'none';
+                claudeTextModels.style.display = 'none';
+                mistralTextModels.style.display = 'none';
+            } else if (textModelType.value === 'alias') {
+                qualityTextModels.style.display = 'none';
+                aliasTextModels.style.display = 'block';
+                gemmaTextModels.style.display = 'none';
+                claudeTextModels.style.display = 'none';
+                mistralTextModels.style.display = 'none';
+            } else if (textModelType.value === 'gemma') {
+                qualityTextModels.style.display = 'none';
+                aliasTextModels.style.display = 'none';
+                gemmaTextModels.style.display = 'block';
+                claudeTextModels.style.display = 'none';
+                mistralTextModels.style.display = 'none';
+            } else if (textModelType.value === 'claude') {
+                qualityTextModels.style.display = 'none';
+                aliasTextModels.style.display = 'none';
+                gemmaTextModels.style.display = 'none';
+                claudeTextModels.style.display = 'block';
+                mistralTextModels.style.display = 'none';
+            } else if (textModelType.value === 'mistral') {
+                qualityTextModels.style.display = 'none';
+                aliasTextModels.style.display = 'none';
+                gemmaTextModels.style.display = 'none';
+                claudeTextModels.style.display = 'none';
+                mistralTextModels.style.display = 'block';
+            }
+        });
+        
+        // Função para processar streaming via fetch POST
+        async function processPostStream(url, body, resultElement, loadingElement, errorElement, statusElement) {
+            loadingElement.style.display = 'block';
+            errorElement.textContent = '';
+            resultElement.textContent = '';
+            statusElement.textContent = 'Enviando solicitação...';
+            let accumulatedContent = '';
+            let isFirstChunk = true;
+            let lastUpdateTime = Date.now();
+            const UPDATE_INTERVAL_MS = 100; // Atualizar a UI a cada 100ms no máximo
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(body),
+                });
+
+                statusElement.textContent = 'Recebendo resposta...';
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`Erro ${response.status}: ${errorData.message || response.statusText}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    
+                    // Processar eventos SSE no buffer
+                    let boundary = buffer.indexOf('\n\n');
+                    while (boundary !== -1) {
+                        const eventString = buffer.substring(0, boundary);
+                        buffer = buffer.substring(boundary + 2);
+
+                        if (eventString.startsWith('data:')) {
+                            const jsonData = eventString.substring(5).trim();
+                            try {
+                                const eventData = JSON.parse(jsonData);
+                                
+                                if (eventData.text) {
+                                    if (isFirstChunk) {
+                                        resultElement.textContent = ''; // Limpa 'Aguardando stream...' na primeira parte
+                                        isFirstChunk = false;
+                                    }
+                                    
+                                    // Acumula o texto recebido
+                                    accumulatedContent += eventData.text;
+                                    
+                                    // Atualiza a UI apenas se passou tempo suficiente desde a última atualização
+                                    // ou se recebemos o último bloco (done)
+                                    const currentTime = Date.now();
+                                    if (currentTime - lastUpdateTime >= UPDATE_INTERVAL_MS || eventData.done) {
+                                        resultElement.textContent = accumulatedContent;
+                                        lastUpdateTime = currentTime;
+                                        
+                                        // Opcional: adiciona um cursor piscante no final do texto durante o streaming
+                                        if (!eventData.done) {
+                                            const cursorElement = document.createElement('span');
+                                            cursorElement.className = 'cursor-blink';
+                                            cursorElement.textContent = '▌';
+                                            resultElement.appendChild(cursorElement);
+                                        }
+                                    }
+                                } else if (eventData.done) {
+                                    console.log('Stream finalizado pelo servidor.');
+                                    statusElement.textContent = 'Concluído.';
+                                    // Garante que o texto final seja exibido sem o cursor
+                                    resultElement.textContent = accumulatedContent;
+                                } else if (eventData.error) {
+                                    console.error('Erro no stream:', eventData.error);
+                                    errorElement.textContent = `Erro no stream: ${eventData.error}`;
+                                    statusElement.textContent = 'Erro.';
+                                    return; // Interrompe o processamento
+                                } else if (eventData.status === 'conectado') {
+                                     console.log('Conexão EventSource estabelecida.');
+                                     statusElement.textContent = 'Conectado, aguardando resposta...';
+                                }
+                            } catch (e) {
+                                console.error('Erro ao parsear JSON do stream:', e, 'JSON:', jsonData);
+                                // Continuar tentando processar o resto do buffer
+                            }
+                        }
+                        boundary = buffer.indexOf('\n\n');
+                    }
+                }
+                statusElement.textContent = 'Stream concluído.';
+            } catch (error) {
+                console.error('Erro ao processar stream POST:', error);
+                errorElement.textContent = `Erro: ${error.message}`;
+                statusElement.textContent = 'Erro.';
+            } finally {
+                loadingElement.style.display = 'none';
+                // Remover qualquer cursor piscante que possa estar presente
+                const cursors = resultElement.querySelectorAll('.cursor-blink');
+                cursors.forEach(cursor => cursor.remove());
+            }
+        }
+        
+        // Função para analisar imagem
+        analyzeBtn.addEventListener('click', async () => {
+            // Determinar a fonte da imagem (URL ou arquivo)
+            let imageUrl = '';
+            let imageBase64 = '';
+            const isUrlTab = tabUrlImage.classList.contains('active');
+
+            if (isUrlTab) {
+                imageUrl = imageUrlInput.value.trim();
+                if (!imageUrl) {
+                    imageError.textContent = 'Por favor, insira a URL da imagem.';
+                    return;
+                }
+            } else {
+                // Modo de upload de arquivo
+                const file = imageFileInput.files[0];
+                if (!file) {
+                    imageError.textContent = 'Por favor, selecione uma imagem para upload.';
+                    return;
+                }
+
+                // Converter a imagem para base64
+                try {
+                    imageBase64 = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(file);
+                    });
+                } catch (error) {
+                    imageError.textContent = 'Erro ao processar a imagem: ' + error.message;
+                    return;
+                }
+            }
+
+            const prompt = imagePromptInput.value.trim();
+            const modelQuality = document.getElementById('image-model-quality').value;
+            const streaming = imageStreamCheckbox.checked;
+            
+            imageLoading.style.display = 'block';
+            imageResult.textContent = '';
+            imageError.textContent = '';
+            imageStatus.textContent = '';
+
+            // Define API base URL
+            const API_BASE_URL = 'http://localhost:3000';
+
+            const endpointPath = '/ai/analyze-image';
+            const requestMethod = 'POST';
+
+            // Preparar o corpo da requisição com URL ou base64
+            const requestBody = {
+                prompt: prompt || undefined,
+                model: modelQuality,
+                streaming: streaming
+            };
+
+            // Adicionar a fonte da imagem (URL ou base64)
+            if (imageUrl) {
+                requestBody.imageUrl = imageUrl;
+            } else if (imageBase64) {
+                requestBody.imageBase64 = imageBase64;
+            }
+
+            const requestInfo = {
+                endpoint: `${API_BASE_URL}${endpointPath}`,
+                method: requestMethod,
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: requestBody
+            };
+
+            try {
+                // Mostrar dialog com informações da solicitação
+                await showRequestInfoDialog(requestInfo);
+                
+                // Continuar com a solicitação após o usuário clicar em "Prosseguir"
+                imageStatus.textContent = 'Enviando solicitação...';
+                
+                // Sempre usar fetch POST
+                if (streaming) {
+                    imageResult.textContent = 'Aguardando stream...';
+                    processPostStream(
+                        `${API_BASE_URL}/ai/analyze-image`,
+                        requestBody,
+                        imageResult,
+                        imageLoading,
+                        imageError,
+                        imageStatus
+                    );
+                } else {
+                    // Fetch POST normal (sem streaming)
+                    const response = await fetch(`${API_BASE_URL}/ai/analyze-image`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(requestBody),
+                    });
+
+                    imageLoading.style.display = 'none';
+                    const data = await response.json();
+
+                    if (data.success) {
+                        imageResult.textContent = JSON.stringify(data.data, null, 2);
+                        imageStatus.textContent = `Modelo usado: ${data.data.model}`;
+                    } else {
+                        imageError.textContent = `Erro: ${data.message}`;
+                        imageStatus.textContent = 'Erro.';
+                    }
+                }
+                
+            } catch (error) {
+                // Este catch agora só pega erros não tratados pelo dialog ou fetch
+                console.error('Erro inesperado ao analisar imagem:', error);
+                imageLoading.style.display = 'none';
+                imageError.textContent = `Erro inesperado: ${error.message}`;
+                imageStatus.textContent = 'Erro inesperado.';
+            }
+        });
+        
+        // Função para gerar texto
+        generateBtn.addEventListener('click', async () => {
+            const prompt = textPromptInput.value.trim();
+            const temperature = parseFloat(temperatureInput.value);
+            const modelType = textModelType.value;
+            let model;
+            
+            if (modelType === 'quality') {
+                model = document.getElementById('quality-text-model').value;
+            } else if (modelType === 'alias') {
+                model = aliasTextModel.value;
+            } else if (modelType === 'gemma') {
+                model = textModelGemma.value;
+            } else if (modelType === 'claude') {
+                model = textModelClaude.value;
+            } else if (modelType === 'mistral') {
+                model = textModelMistral.value;
+            }
+            
+            const streaming = textStreamCheckbox.checked;
+            
+            if (!prompt) {
+                textError.textContent = 'Por favor, insira um prompt.';
+                return;
+            }
+            
+            textLoading.style.display = 'block';
+            textResult.textContent = '';
+            textError.textContent = '';
+            textStatus.textContent = '';
+
+            // Define API base URL
+            const API_BASE_URL = 'http://localhost:3000';
+
+            const endpointPath = '/ai/generate-text';
+            const requestMethod = 'POST';
+
+            const requestInfo = {
+                endpoint: `${API_BASE_URL}${endpointPath}`,
+                method: requestMethod,
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: {
+                    prompt,
+                    temperature: isNaN(temperature) ? undefined : temperature,
+                    model,
+                    streaming: streaming
+                }
+            };
+
+            try {
+                // Mostrar dialog com informações da solicitação
+                await showRequestInfoDialog(requestInfo);
+                
+                // Continuar com a solicitação após o usuário clicar em "Prosseguir"
+                textStatus.textContent = 'Enviando solicitação...';
+
+                const requestBody = {
+                    prompt,
+                    temperature: isNaN(temperature) ? undefined : temperature,
+                    model,
+                    streaming: streaming
+                };
+
+                if (streaming) {
+                    textResult.textContent = 'Aguardando stream...';
+                    processPostStream(
+                        `${API_BASE_URL}/ai/generate-text`,
+                        requestBody,
+                        textResult,
+                        textLoading,
+                        textError,
+                        textStatus
+                    );
+                } else {
+                    // Fetch POST normal (sem streaming)
+                    const response = await fetch(`${API_BASE_URL}/ai/generate-text`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(requestBody),
+                    });
+
+                    textLoading.style.display = 'none';
+                    const data = await response.json();
+
+                    if (data.success) {
+                        textResult.textContent = data.data.generatedText;
+                        textStatus.textContent = `Modelo usado: ${data.data.model}`;
+                    } else {
+                        textError.textContent = `Erro: ${data.message}`;
+                        textStatus.textContent = 'Erro.';
+                    }
+                }
+                
+            } catch (error) {
+                // Este catch agora só pega erros não tratados pelo dialog ou fetch
+                console.error('Erro inesperado ao gerar texto:', error);
+                textLoading.style.display = 'none';
+                textError.textContent = `Erro inesperado: ${error.message}`;
+                textStatus.textContent = 'Erro inesperado.';
+            }
+        });
+        
+        // Consultar modelos disponíveis
+        async function fetchModels() {
+            try {
+                const API_BASE_URL = 'http://localhost:3000';
+                const response = await fetch(`${API_BASE_URL}/ai/models`);
+                const data = await response.json();
+                if (data.success) {
+                    const models = data.data.models;
+                    
+                    // Limpar dropdowns existentes
+                    textGemmaModelSelect.innerHTML = '';
+                    textClaudeModelSelect.innerHTML = '';
+                    textMistralModelSelect.innerHTML = '';
+                    textAliasModelSelect.innerHTML = '';
+                    
+                    // Popular dropdowns de GERAÇÃO DE TEXTO
+                    models.gemma.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model.id;
+                        option.textContent = `${model.name} (${model.description})`;
+                        textGemmaModelSelect.appendChild(option);
+                    });
+                    models.claude.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model.id;
+                        option.textContent = `${model.name} (${model.description})`;
+                        textClaudeModelSelect.appendChild(option);
+                    });
+                    models.mistral.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model.id;
+                        option.textContent = `${model.name} (${model.description})`;
+                        textMistralModelSelect.appendChild(option);
+                    });
+                    models.aliases.forEach(alias => {
+                        const option = document.createElement('option');
+                        option.value = alias.alias;
+                        option.textContent = `${alias.alias} (${alias.description})`;
+                        textAliasModelSelect.appendChild(option);
+                    });
+                    
+                    // Habilitar seletores após carregar
+                    textGemmaModelSelect.disabled = false;
+                    textClaudeModelSelect.disabled = false;
+                    textMistralModelSelect.disabled = false;
+                    textAliasModelSelect.disabled = false;
+                    
+                    // Atualizar visibilidade inicial dos modelos de texto
+                    textModelType.dispatchEvent(new Event('change'));
+                } else {
+                    console.error('Erro ao buscar modelos:', data.message);
+                }
+            } catch (error) {
+                console.error('Erro ao buscar modelos:', error);
+            }
+        }
+        
+        // Inicializar a página
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchModels();
+        });
+    </script>
+</body>
+</html>

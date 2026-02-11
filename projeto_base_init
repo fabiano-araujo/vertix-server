@@ -1,0 +1,11 @@
+## instalar dependencias
+yarn install
+
+## inicializar banco de dados, usar toda vez que alterar o arquivo prisma/schema.prisma
+yarn prisma migrate dev --name init
+
+## gerar client prisma, usado para fazer o CRUD
+yarn prisma generate
+
+## rodar projeto
+yarn start

@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demonstração - Interromper Geração de IA</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+      color: #2c3e50;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    textarea, select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+    textarea {
+      height: 120px;
+      resize: vertical;
+    }
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    #generateButton {
+      background-color: #2ecc71;
+      color: white;
+      flex: 2;
+    }
+    #generateButton:hover {
+      background-color: #27ae60;
+    }
+    #stopButton {
+      background-color: #e74c3c;
+      color: white;
+      flex: 1;
+    }
+    #stopButton:hover {
+      background-color: #c0392b;
+    }
+    #stopButton:disabled, #generateButton:disabled {
+      background-color: #95a5a6;
+      cursor: not-allowed;
+    }
+    .result-container {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 15px;
+      background-color: #f9f9f9;
+      min-height: 200px;
+      white-space: pre-wrap;
+      overflow-y: auto;
+      max-height: 500px;
+    }
+    .status {
+      text-align: center;
+      font-size: 14px;
+      margin-top: 10px;
+      color: #7f8c8d;
+    }
+    .error {
+      color: #e74c3c;
+      font-weight: bold;
+    }
+    .success {
+      color: #2ecc71;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Demonstração de Interrupção de Geração de IA</h1>
+  
+  <div class="form-group">
+    <label for="prompt">Prompt (o que você deseja que a IA gere):</label>
+    <textarea id="prompt" placeholder="Por exemplo: Escreva um artigo longo sobre a importância da inteligência artificial no mundo moderno..."></textarea>
+  </div>
+
+  <div class="form-group">
+    <label for="model">Modelo:</label>
+    <select id="model">
+      <option value="baixo">Baixo (mais rápido, menos detalhes)</option>
+      <option value="equilibrado" selected>Equilibrado (recomendado)</option>
+      <option value="otimo">Ótimo (mais lento, mais detalhes)</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label for="userId">ID do Usuário (para teste):</label>
+    <input type="number" id="userId" value="1" min="1" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px;">
+  </div>
+
+  <div class="button-group">
+    <button id="generateButton">Gerar Texto</button>
+    <button id="stopButton" disabled>Parar</button>
+  </div>
+
+  <div class="form-group">
+    <label for="output">Resultado:</label>
+    <div id="output" class="result-container"></div>
+    <div id="status" class="status">Pronto para gerar texto</div>
+  </div>
+
+  <script>
+    // Configuração da API
+    const API_BASE_URL = 'http://localhost:3000';
+    let activeConnection = null;
+    let activeConnectionId = null;
+
+    // Função para iniciar uma geração de texto
+    function startTextGeneration() {
+      // Se já existir uma conexão ativa, interrompe
+      if (activeConnection) {
+        stopGeneration();
+      }
+      
+      const prompt = document.getElementById('prompt').value;
+      if (!prompt.trim()) {
+        setStatus('Por favor, digite um prompt antes de gerar texto', 'error');
+        return;
+      }
+      
+      const model = document.getElementById('model').value;
+      const userId = document.getElementById('userId').value;
+      
+      if (!userId || isNaN(parseInt(userId)) || parseInt(userId) < 1) {
+        setStatus('Por favor, informe um ID de usuário válido', 'error');
+        return;
+      }
+      
+      console.log('Iniciando geração de texto:', { prompt, model, userId });
+      
+      // Parâmetros da requisição
+      const params = new URLSearchParams({
+        prompt,
+        userId: userId.toString(),
+        streaming: 'true',
+        model
+      });
+      
+      // Limpa o output e atualiza status
+      const outputElement = document.getElementById('output');
+      outputElement.textContent = '';
+      setStatus('Conectando ao servidor...', 'normal');
+      
+      try {
+        // Cria uma nova conexão EventSource
+        activeConnection = new EventSource(`${API_BASE_URL}/ai/generate-text?${params}`);
+        
+        // Manipuladores de eventos
+        activeConnection.onopen = () => {
+          console.log('Conexão estabelecida');
+          setStatus('Conexão estabelecida, aguardando resposta...', 'normal');
+        };
+        
+        activeConnection.onerror = (error) => {
+          console.error('Erro na conexão:', error);
+          setStatus('Erro na conexão com o servidor. Verifique o console para mais detalhes.', 'error');
+          stopGeneration();
+        };
+        
+        activeConnection.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            
+            // Se receber o ID da conexão
+            if (data.status === 'conectado' && data.connectionId) {
+              activeConnectionId = data.connectionId;
+              setStatus(`Conexão ativa (ID: ${activeConnectionId.substring(0, 8)}...)`, 'success');
+              console.log('ID da conexão:', activeConnectionId);
+            }
+            
+            // Se receber texto
+            if (data.text) {
+              appendOutput(data.text);
+            }
+            
+            // Se receber erro
+            if (data.error) {
+              appendOutput(`\n\nErro: ${data.error}`);
+              setStatus(`Erro: ${data.error}`, 'error');
+              stopGeneration(false);
+            }
+            
+            // Se a geração for concluída
+            if (data.done) {
+              console.log('Geração concluída');
+              setStatus('Geração concluída com sucesso!', 'success');
+              stopGeneration(false);
+            }
+          } catch (error) {
+            console.error('Erro ao processar mensagem:', error, event.data);
+            setStatus('Erro ao processar resposta do servidor', 'error');
+          }
+        };
+        
+        // Atualiza o estado dos botões
+        document.getElementById('stopButton').disabled = false;
+        document.getElementById('generateButton').disabled = true;
+      } catch (error) {
+        console.error('Erro ao criar conexão EventSource:', error);
+        setStatus('Erro ao criar conexão com o servidor', 'error');
+      }
+    }
+
+    // Função para interromper a geração em andamento
+    function stopGeneration(userInitiated = true) {
+      if (!activeConnection) {
+        console.log('Nenhuma geração ativa para interromper');
+        return;
+      }
+      
+      // Fecha a conexão EventSource
+      activeConnection.close();
+      
+      // Se tivermos o ID da conexão, notifica o servidor
+      if (activeConnectionId) {
+        console.log('Interrompendo geração com ID:', activeConnectionId);
+        
+        const userId = document.getElementById('userId').value;
+        
+        // Envia uma requisição para interromper a geração no servidor
+        fetch(`${API_BASE_URL}/ai/stop-generation?connectionId=${activeConnectionId}&userId=${userId}`)
+          .then(response => response.json())
+          .then(data => {
+            console.log('Resposta da interrupção:', data);
+            if (userInitiated) {
+              setStatus('Geração interrompida pelo usuário', 'normal');
+            }
+          })
+          .catch(error => {
+            console.error('Erro ao interromper geração:', error);
+            setStatus('Erro ao interromper geração', 'error');
+          });
+      }
+      
+      // Limpa as variáveis de estado
+      activeConnection = null;
+      activeConnectionId = null;
+      
+      // Atualiza o estado dos botões
+      document.getElementById('stopButton').disabled = true;
+      document.getElementById('generateButton').disabled = false;
+      
+      // Adiciona uma mensagem indicando que a geração foi interrompida, se foi o usuário que iniciou
+      if (userInitiated) {
+        appendOutput('\n\n[Geração interrompida pelo usuário]');
+      }
+    }
+
+    // Função auxiliar para adicionar texto à saída
+    function appendOutput(text) {
+      const outputElement = document.getElementById('output');
+      outputElement.textContent += text;
+      // Auto-scroll para o final
+      outputElement.scrollTop = outputElement.scrollHeight;
+    }
+
+    // Função auxiliar para atualizar o status
+    function setStatus(message, type = 'normal') {
+      const statusElement = document.getElementById('status');
+      statusElement.textContent = message;
+      
+      // Remove classes anteriores
+      statusElement.classList.remove('error', 'success');
+      
+      // Adiciona classe com base no tipo
+      if (type === 'error') {
+        statusElement.classList.add('error');
+      } else if (type === 'success') {
+        statusElement.classList.add('success');
+      }
+    }
+
+    // Adiciona os event listeners aos botões
+    document.getElementById('generateButton').addEventListener('click', startTextGeneration);
+    document.getElementById('stopButton').addEventListener('click', stopGeneration);
+
+    // Inicializa com um prompt de exemplo
+    document.getElementById('prompt').value = 'Escreva um artigo bem completo e longo sobre como a Inteligência Artificial está transformando a sociedade moderna, detalhando pelo menos 5 áreas importantes e com exemplos concretos de cada uma.';
+  </script>
+</body>
+</html> 

@@ -1,0 +1,58 @@
+### init project
+yarn init -y
+
+### novo banco prisma
+yarn add prisma @prisma/client
+yarn prisma init
+yarn prisma migrate dev --name init
+
+##criar banco a partir do prisma
+
+
+### prisma de um banco ja existente
+yarn prisma db pull
+
+### gerar client prisma
+yarn prisma generate
+
+
+### add fastify ...  
+yarn add fastify 
+
+### converte para typescript
+yarn add typescript ts-node
+yarn tsc --init
+//ir em tsconfig.json e descomentar "resolveJsonModule": true ,  "rootDir": "./" e outDir descomentar e mudar para  "outDir": "build"
+yarn build
+
+
+yarn add -D @types/cors
+yarn add -D @types/bcrypt
+##############################
+
+### cryptografar senha
+yarn add bcrypt
+
+### validacao de dados api
+yarn add yup
+
+### authentication
+yarn add jsonwebtoken
+yarn add -D @types/jsonwebtoken
+
+||||||||||||||||||||||||||||||||||||||||||||||||||||
+migrar
+yarn install
+
+iniciar 
+yarn start
+
+
+### para atualizar o servidor 
+abrir pasta do projeto nodejs
+git pull
+pm2 stop index //para servico em execução
+yarn start //para iniciar o servico e testar o novo codigo
+
+Client ID: 99d47619fd5e4bc3b7f72cd551dceedd
+Client Secret: 14e82c5e3a7341718a434e76d4375858
