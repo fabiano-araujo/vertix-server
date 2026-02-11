@@ -395,6 +395,7 @@ export const generateFullSeries = async (
       data: {
         title: script.seriesTitle,
         description: script.seriesDescription,
+        coverUrl: '', // Will be updated later with generated cover
         genre: config.genre,
         tags: JSON.stringify(script.tags),
         totalEpisodes: script.episodes.length,

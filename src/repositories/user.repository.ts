@@ -12,7 +12,7 @@ export const createUser = async (data: User) => {
     }
 
     // Se a senha foi fornecida, criptografa-a
-    let hashedPassword = null;
+    let hashedPassword: string | null = null;
     if (data.password) {
         hashedPassword = await criptografarSenha(data.password);
     }

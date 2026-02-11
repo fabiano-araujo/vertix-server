@@ -219,21 +219,25 @@ model AIGenerationJob {
 
 // Modelo de assinatura
 model Subscription {
-  id              Int       @id @default(autoincrement())
-  userId          Int                                     // ID do usuário associado
-  planType        String                                  // Tipo de plano: "semanal", "mensal", "anual"
-  startDate       DateTime  @default(now())               // Data de início da assinatura
-  expirationDate  DateTime                                // Data de expiração da assinatura
-  active          Boolean   @default(true)                // Status da assinatura
-  paymentId       String?                                 // ID de referência do pagamento
-  platform        String?                                 // Plataforma: "android", "ios", "web"
-  purchaseToken   String?                                 // Token de compra (Google Play/App Store)
-  orderId         String?                                 // ID do pedido
-  createdAt       DateTime  @default(now())               // Data de criação do registro
-  updatedAt       DateTime  @updatedAt                    // Data de atualização do registro
+  id                    Int       @id @default(autoincrement())
+  userId                Int                                     // ID do usuário associado
+  planType              String                                  // Tipo de plano: "semanal", "mensal", "anual"
+  startDate             DateTime  @default(now())               // Data de início da assinatura
+  expirationDate        DateTime                                // Data de expiração da assinatura
+  active                Boolean   @default(true)                // Status da assinatura
+  paymentId             String?                                 // ID de referência do pagamento
+  platform              String?                                 // Plataforma: "android", "ios", "web"
+  purchaseToken         String?                                 // Token de compra (Google Play/App Store)
+  orderId               String?                                 // ID do pedido
+  productId             String?                                 // ID do produto (Google Play)
+  isAutoRenewing        Boolean   @default(false)               // Se renova automaticamente
+  originalTransactionId String?                                 // ID da transação original
+  acknowledged          Boolean   @default(false)               // Se foi reconhecida pela loja
+  createdAt             DateTime  @default(now())               // Data de criação do registro
+  updatedAt             DateTime  @updatedAt                    // Data de atualização do registro
 
   // Relacionamento com usuário
-  user            User      @relation(fields: [userId], references: [id])
+  user                  User      @relation(fields: [userId], references: [id])
 }
 
 // Modelo para gerenciar créditos diários do usuário
