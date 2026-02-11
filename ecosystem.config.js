@@ -1,7 +1,7 @@
 module.exports = {
   apps: [{
     name: 'vertix',
-    script: './dist/index.js',
+    script: './dist/src/index.js',
     cwd: '/var/vertix',
     instances: 1,
     autorestart: true,
