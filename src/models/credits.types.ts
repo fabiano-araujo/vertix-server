@@ -7,6 +7,10 @@ export class UserCredits {
   id: number;
   userId: number;
   availableCredits: number;
+  dailyStart: Date;
+  lockUntil: Date | null;
+  adsWatchedToday: number;
+  adInProgress: boolean;
   lastReset: Date;
   lastCheck: Date;
   createdAt: Date;
@@ -17,8 +21,10 @@ export class UserCredits {
     id: number,
     userId: number,
     availableCredits: number = 20,
-    lastReset: Date = new Date(),
-    lastCheck: Date = new Date(),
+    dailyStart: Date = new Date(),
+    lockUntil: Date | null = null,
+    adsWatchedToday: number = 0,
+    adInProgress: boolean = false,
     createdAt: Date = new Date(),
     updatedAt: Date = new Date(),
     user?: User
@@ -26,8 +32,12 @@ export class UserCredits {
     this.id = id;
     this.userId = userId;
     this.availableCredits = availableCredits;
-    this.lastReset = lastReset;
-    this.lastCheck = lastCheck;
+    this.dailyStart = dailyStart;
+    this.lockUntil = lockUntil;
+    this.adsWatchedToday = adsWatchedToday;
+    this.adInProgress = adInProgress;
+    this.lastReset = dailyStart;
+    this.lastCheck = new Date();
     this.createdAt = createdAt;
     this.updatedAt = updatedAt;
     this.user = user;
@@ -38,15 +48,18 @@ export class UserCredits {
    * @returns boolean indicando se os créditos foram reiniciados
    */
   shouldResetCredits(): boolean {
-    // Verifica se a data da última reinicialização é de um dia anterior
-    const today = new Date();
-    const lastResetDate = new Date(this.lastReset);
-    
-    return (
-      today.getDate() !== lastResetDate.getDate() ||
-      today.getMonth() !== lastResetDate.getMonth() ||
-      today.getFullYear() !== lastResetDate.getFullYear()
-    );
+    const now = new Date();
+    const dailyStartTime = new Date(this.dailyStart).getTime();
+    const hoursSinceDailyStart = (now.getTime() - dailyStartTime) / (1000 * 60 * 60);
+    return hoursSinceDailyStart >= 24;
+  }
+
+  /**
+   * Verifica se o usuário está bloqueado
+   */
+  isLocked(): boolean {
+    if (!this.lockUntil) return false;
+    return new Date() < new Date(this.lockUntil);
   }
 
   /**

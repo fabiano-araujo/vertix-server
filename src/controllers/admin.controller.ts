@@ -1,6 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import aiGenerationService from '../services/ai-generation.service';
-import prisma from '../services/prisma';
+import { prisma } from '../services/prisma';
 
 // ============================================
 // AI SERIES GENERATION

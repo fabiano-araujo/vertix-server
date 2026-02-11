@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { generateText, AVAILABLE_MODELS } from './openrouter.service';
 import storageService from './storage.service';
-import prisma from './prisma';
+import { prisma } from './prisma';
 
 // ============================================
 // CONFIGURATION

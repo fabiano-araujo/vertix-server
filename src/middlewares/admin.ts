@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import prisma from '../services/prisma';
+import { prisma } from '../services/prisma';
 
 /**
  * Middleware to verify if user has ADMIN role

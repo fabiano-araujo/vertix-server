@@ -406,3 +406,45 @@ export const addDeviceCredits = async (
     throw new Error('Erro ao adicionar créditos ao dispositivo');
   }
 };
+
+/**
+ * Consome créditos de um usuário (retorna boolean para compatibilidade)
+ */
+export const consumeCredits = async (userId: number, amount: number): Promise<boolean> => {
+  try {
+    const userCredits = await getUserCredits(userId);
+
+    if (userCredits.availableCredits < amount) {
+      return false;
+    }
+
+    await prisma.userCredits.update({
+      where: { userId },
+      data: {
+        availableCredits: userCredits.availableCredits - amount,
+        updatedAt: new Date()
+      }
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Erro ao consumir créditos do usuário:', error);
+    return false;
+  }
+};
+
+/**
+ * Atualiza a data da última verificação do usuário
+ */
+export const updateLastCheck = async (userId: number): Promise<void> => {
+  try {
+    await prisma.userCredits.update({
+      where: { userId },
+      data: {
+        lastCheck: new Date()
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao atualizar data da última verificação:', error);
+  }
+};
