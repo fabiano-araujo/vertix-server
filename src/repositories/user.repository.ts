@@ -85,6 +85,7 @@ export const findUserById = async (id: number, includeSubscriptions: boolean = f
                 username: true,
                 googleId: true,
                 photo: true,
+                role: true,
             }
         });
     }
@@ -132,6 +133,7 @@ export const findUserByEmail = async (email: string, includeSubscriptions: boole
                 password: true,
                 googleId: true,
                 photo: true,
+                role: true,
             }
         });
     }
@@ -155,6 +157,7 @@ export const findUserByGoogleId = async (googleId: string, includeSubscriptions:
                 username: true,
                 googleId: true,
                 photo: true,
+                role: true,
             }
         });
     }
