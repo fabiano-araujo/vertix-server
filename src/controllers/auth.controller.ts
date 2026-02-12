@@ -93,6 +93,7 @@ export const login = async (req: FastifyRequest<{ Body: LoginRequest }>, reply: 
                 email: user.email,
                 username: user.username,
                 photo: user.photo,
+                role: user.role,
                 subscription: subscriptionStatus,
                 credits: {
                     available: userCredits.availableCredits,
@@ -156,6 +157,7 @@ export const registro = async (req: FastifyRequest<{ Body: { nome: string, email
                 email: user.email,
                 username: user.username,
                 photo: user.photo,
+                role: user.role,
                 subscription: subscriptionStatus,
                 credits: {
                     available: userCredits.availableCredits,
@@ -208,6 +210,7 @@ export const googleLogin = async (req: FastifyRequest<{ Body: GoogleLoginRequest
                 email: user.email,
                 username: user.username,
                 photo: user.photo,
+                role: user.role,
                 subscription: subscriptionStatus,
                 credits: {
                     available: userCredits.availableCredits,
