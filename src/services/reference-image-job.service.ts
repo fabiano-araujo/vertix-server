@@ -55,12 +55,25 @@ type ReferenceImageJobOutputItem = StoredReference & {
   updatedAt: string;
 };
 
+export type ReferenceImageBridgeStatus =
+  | 'STARTING'
+  | 'STARTED'
+  | 'FAILED';
+
+type ReferenceImageBridgeState = {
+  status: 'PENDING' | ReferenceImageBridgeStatus;
+  message: string;
+  threadId?: string;
+  updatedAt: string;
+};
+
 type ReferenceImageJobOutput = {
   version: 1;
   message: string;
   total: number;
   completed: number;
   failed: number;
+  bridge: ReferenceImageBridgeState;
   items: ReferenceImageJobOutputItem[];
 };
 
@@ -229,6 +242,11 @@ export const startReferenceImageJob = async (
     total: references.length,
     completed: 0,
     failed: 0,
+    bridge: {
+      status: 'PENDING',
+      message: 'Aguardando a ponte local do Codex',
+      updatedAt: now.toISOString(),
+    },
     items: references.map((reference) => ({
       ...reference,
       status: 'PENDING',
@@ -248,6 +266,62 @@ export const startReferenceImageJob = async (
   });
 
   return { job, capabilityToken, capabilityExpiresAt: input.capabilityExpiresAt };
+};
+
+export const updateReferenceImageBridgeStatus = async (
+  jobId: number,
+  token: string,
+  status: ReferenceImageBridgeStatus,
+  message?: string,
+  threadId?: string,
+) => {
+  const allowed = new Set<ReferenceImageBridgeStatus>([
+    'STARTING',
+    'STARTED',
+    'FAILED',
+  ]);
+  if (!allowed.has(status)) throw new Error('Status da ponte invalido');
+
+  const { job, output } = await loadAuthorizedJob(jobId, token);
+  if (['COMPLETED', 'FAILED', 'CANCELLED'].includes(job.status)) {
+    return { job, output };
+  }
+
+  const now = new Date();
+  const safeThreadId = cleanText(threadId, 100);
+  const fallbackMessage = status === 'STARTING'
+    ? 'Ponte local iniciada; criando uma tarefa no Codex'
+    : status === 'STARTED'
+      ? 'Tarefa iniciada no Codex; aguardando a primeira imagem'
+      : 'Nao foi possivel iniciar a tarefa no Codex';
+  const safeMessage = cleanText(message, 1_000) || fallbackMessage;
+  output.bridge = {
+    status,
+    message: safeMessage,
+    ...(safeThreadId ? { threadId: safeThreadId } : {}),
+    updatedAt: now.toISOString(),
+  };
+  output.message = safeMessage;
+
+  if (status !== 'FAILED') {
+    const updatedJob = await saveOutput(jobId, output, 'PROCESSING', {
+      errorMessage: null,
+    });
+    return { job: updatedJob, output: recount(output) };
+  }
+
+  for (const item of output.items) {
+    if (item.status === 'COMPLETED' || item.status === 'FAILED') continue;
+    item.status = 'FAILED';
+    item.error = safeMessage;
+    item.updatedAt = now.toISOString();
+  }
+  const counted = recount(output);
+  const updatedJob = await saveOutput(jobId, counted, 'FAILED', {
+    errorMessage: safeMessage,
+    completedAt: now,
+  });
+  return { job: updatedJob, output: counted };
 };
 
 export const getReferenceImageJobManifest = async (
@@ -461,6 +535,7 @@ export const buildReferenceImageTaskPrompt = (
 
 export default {
   startReferenceImageJob,
+  updateReferenceImageBridgeStatus,
   getReferenceImageJobManifest,
   updateReferenceImageItemStatus,
   uploadReferenceImage,

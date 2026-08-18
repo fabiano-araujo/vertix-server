@@ -1,6 +1,7 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
 
 import referenceImageJobService, {
+  ReferenceImageBridgeStatus,
   ReferenceImageJobItemStatus,
 } from '../services/reference-image-job.service';
 
@@ -31,6 +32,29 @@ export const getManifest = async (req: FastifyRequest, reply: FastifyReply) => {
     const data = await referenceImageJobService.getReferenceImageJobManifest(
       jobIdFrom(req),
       jobToken(req),
+    );
+    return reply.send({ success: true, data });
+  } catch (error: any) {
+    return sendError(reply, error);
+  }
+};
+
+export const updateBridgeStatus = async (
+  req: FastifyRequest,
+  reply: FastifyReply,
+) => {
+  try {
+    const body = (req.body || {}) as {
+      status?: string;
+      message?: string;
+      threadId?: string;
+    };
+    const data = await referenceImageJobService.updateReferenceImageBridgeStatus(
+      jobIdFrom(req),
+      jobToken(req),
+      String(body.status || '').toUpperCase() as ReferenceImageBridgeStatus,
+      body.message,
+      body.threadId,
     );
     return reply.send({ success: true, data });
   } catch (error: any) {
@@ -91,6 +115,7 @@ export const completeJob = async (req: FastifyRequest, reply: FastifyReply) => {
 
 export default {
   getManifest,
+  updateBridgeStatus,
   updateItemStatus,
   uploadItem,
   completeJob,

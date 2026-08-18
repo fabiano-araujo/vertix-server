@@ -7,6 +7,11 @@ export default async function codexReferenceRoutes(fastify: FastifyInstance) {
     handler: controller.getManifest,
   });
 
+  fastify.post('/codex/reference-image-jobs/:id/bridge-status', {
+    bodyLimit: 16 * 1024,
+    handler: controller.updateBridgeStatus,
+  });
+
   fastify.post('/codex/reference-image-jobs/:id/items/:referenceId/status', {
     bodyLimit: 64 * 1024,
     handler: controller.updateItemStatus,

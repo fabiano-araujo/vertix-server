@@ -46,9 +46,14 @@ processa as fichas sequencialmente.
 Endpoints consumidos pela skill:
 
 - `GET /codex/reference-image-jobs/:id`
+- `POST /codex/reference-image-jobs/:id/bridge-status`
 - `POST /codex/reference-image-jobs/:id/items/:referenceId/status`
 - `POST /codex/reference-image-jobs/:id/items/:referenceId/upload`
 - `POST /codex/reference-image-jobs/:id/complete`
+
+A ponte registra `STARTING`, `STARTED` e `FAILED` no endpoint de status. Assim,
+o editor so informa que a tarefa iniciou depois de receber a confirmacao real
+do Codex e libera uma nova tentativa quando a abertura falha.
 
 ## Configuration
 
