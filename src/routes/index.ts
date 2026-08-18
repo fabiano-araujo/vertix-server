@@ -15,6 +15,7 @@ import searchRoutes from "./search.routes";
 import adminRoutes from "./admin.routes";
 import openrouterVideoRoutes from "./openrouter-video.routes";
 import dolaRoutes from "./dola.routes";
+import codexReferenceRoutes from "./codex-reference.routes";
 
 const router = (app: any) => {
     // Existing routes
@@ -33,6 +34,7 @@ const router = (app: any) => {
     commentRoutes(app);
     searchRoutes(app);
     adminRoutes(app);
+    codexReferenceRoutes(app);
     openrouterVideoRoutes(app);
     if (process.env.DOLA_ENABLED === 'true') {
         dolaRoutes(app);

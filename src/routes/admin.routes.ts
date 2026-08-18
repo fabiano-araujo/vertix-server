@@ -19,6 +19,12 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     handler: adminController.startCodexWorkflow,
   });
 
+  fastify.post('/admin/series/:id/reference-image-jobs', {
+    preHandler,
+    bodyLimit: 10 * 1024 * 1024,
+    handler: adminController.startReferenceImageJob,
+  });
+
   fastify.post('/admin/series', {
     preHandler,
     handler: adminController.createSeries,

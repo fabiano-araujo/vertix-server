@@ -6,6 +6,9 @@ import storageService from '../services/storage.service';
 import codexWorkflowService, {
   CodexWorkflowRequest,
 } from '../services/codex-workflow.service';
+import referenceImageJobService, {
+  StartReferenceImageJobRequest,
+} from '../services/reference-image-job.service';
 import { prisma } from '../services/prisma';
 
 const parseJsonField = (value?: string | null) => {
@@ -127,6 +130,49 @@ export const startCodexWorkflow = async (
     return reply.code(400).send({
       success: false,
       message: error.message || 'Nao foi possivel iniciar a acao no Codex',
+    });
+  }
+};
+
+export const startReferenceImageJob = async (
+  req: FastifyRequest,
+  reply: FastifyReply,
+) => {
+  try {
+    const user = (req as any).user;
+    const { id } = req.params as { id: string };
+    const seriesId = Number.parseInt(id, 10);
+    if (!Number.isInteger(seriesId) || seriesId <= 0) {
+      return reply.code(400).send({
+        success: false,
+        message: 'ID da serie invalido',
+      });
+    }
+    const body = (req.body || {}) as StartReferenceImageJobRequest;
+    const started = await referenceImageJobService.startReferenceImageJob(
+      seriesId,
+      user.id,
+      body,
+    );
+    return reply.code(202).send({
+      success: true,
+      message: 'Job de imagens criado para o Codex',
+      data: {
+        id: started.job.id,
+        seriesId: started.job.seriesId,
+        type: started.job.type,
+        status: started.job.status,
+        progress: started.job.progress,
+        createdAt: started.job.createdAt,
+        capabilityToken: started.capabilityToken,
+        capabilityExpiresAt: started.capabilityExpiresAt,
+      },
+    });
+  } catch (error: any) {
+    console.error('[Admin Controller] Error starting reference image job:', error.message);
+    return reply.code(400).send({
+      success: false,
+      message: error.message || 'Nao foi possivel criar o job de imagens',
     });
   }
 };
@@ -742,6 +788,7 @@ export const ingestSeriesReference = async (req: FastifyRequest, reply: FastifyR
 export default {
   generateSeries,
   startCodexWorkflow,
+  startReferenceImageJob,
   getJobs,
   getJobStatus,
   cancelJob,

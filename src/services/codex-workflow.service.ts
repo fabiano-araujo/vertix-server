@@ -4,6 +4,7 @@ import { resolveModel } from '../config/ai-models.config';
 
 export const CODEX_WORKFLOW_ACTIONS = [
   'GENERATE_SERIES_OUTLINE',
+  'GENERATE_STORY_SHEETS',
   'GENERATE_EPISODE_SCRIPT',
   'GENERATE_PRODUCTION_SCENES',
   'REVISE_PROJECT',
@@ -62,6 +63,9 @@ const compactProjectForAction = (
   if (action === 'GENERATE_SERIES_OUTLINE' || action === 'REVISE_PROJECT') {
     return source;
   }
+  if (action === 'GENERATE_STORY_SHEETS') {
+    return compactProjectForStorySheets(source);
+  }
   const wanted = asEpisodeNumber(episodeNumber);
   const episodes = Array.isArray(source.episodes) ? source.episodes : [];
   const episode = episodes.find(
@@ -111,6 +115,13 @@ const compactProjectForAction = (
       environments: bible.environments,
       props: bible.props,
       style_preset: bible.style_preset,
+      max_shot_duration_seconds: bible.max_shot_duration_seconds,
+      shot_duration_mode: bible.shot_duration_mode,
+      provider_duration_seconds: bible.provider_duration_seconds,
+      provider_duration_mode: bible.provider_duration_mode,
+      video_generation_profile: bible.video_generation_profile,
+      video_generation_channel: bible.video_generation_channel,
+      seedance_model: bible.seedance_model,
       episode_cards: episodeCards,
       episode_scripts: episodeScripts,
       hook_chain: hookChain,
@@ -131,6 +142,78 @@ const compactProjectForAction = (
   };
 };
 
+const compactProjectForStorySheets = (source: JsonMap): JsonMap => {
+  const bible =
+    source.seriesBible && typeof source.seriesBible === 'object'
+      ? (source.seriesBible as JsonMap)
+      : {};
+  const episodes = Array.isArray(source.episodes) ? source.episodes : [];
+  const episodeCards = Array.isArray(bible.episode_cards)
+    ? bible.episode_cards.map((card: any) => ({
+        episode: card?.episode,
+        title: card?.title,
+        episode_job: card?.episode_job,
+        treatment: card?.treatment,
+        cold_open: card?.cold_open,
+        cast: card?.cast,
+      }))
+    : [];
+  return {
+    id: source.id,
+    title: source.title,
+    description: source.description,
+    genre: source.genre,
+    formatFamily: source.formatFamily,
+    targetEpisodeCount: source.targetEpisodeCount,
+    seriesBible: {
+      title: bible.title || source.title,
+      logline: bible.logline || source.description,
+      protagonist: bible.protagonist,
+      opposing_force: bible.opposing_force,
+      central_question: bible.central_question,
+      big_expectation: bible.big_expectation,
+      language: bible.language,
+      visual_style: bible.visual_style,
+      genre: bible.genre || source.genre,
+      background: bible.background,
+      trope: bible.trope,
+      characters: bible.characters,
+      environments: bible.environments,
+      props: bible.props,
+      episode_cards: episodeCards,
+    },
+    episodes: episodes.map((item: any) => ({
+      number: item?.number,
+      title: item?.title,
+      summary: item?.summary,
+      cliffhanger: item?.cliffhanger,
+    })),
+    references: source.references,
+  };
+};
+
+const shotTimingFromProject = (project: JsonMap) => {
+  const bible = asMap(project.seriesBible);
+  const maxShot = Number(bible.max_shot_duration_seconds)
+    || Number(asMap(bible.config).max_shot_duration_seconds)
+    || 10;
+  const mode = String(
+    bible.shot_duration_mode
+    || bible.provider_duration_mode
+    || asMap(bible.config).duration_mode
+    || '',
+  );
+  return { maxShot, fixed: mode === 'FIXED' };
+};
+
+const shotTimingContract = (request: CodexWorkflowRequest): string => {
+  const { maxShot, fixed } = shotTimingFromProject(asMap(request.project));
+  if (fixed) {
+    return `The project is a vertical serialized microdrama. Every video shot MUST last exactly ${maxShot} seconds. Do not plan 5s, 15s or 30s shots. Dialogue plus action row durations must add exactly to ${maxShot}. All shot durations must sum exactly to the episode duration. Preserve immediate comprehension, escalating pressure, visible choices, retention hooks, and cliffhanger cuts at the peak before explanation or reaction.`;
+  }
+  return `The project is a vertical serialized microdrama. Every video shot has a variable duration from 1 second up to ${maxShot} seconds. Choose only the duration needed for that beat; never exceed ${maxShot} seconds. Dialogue plus action row durations must add exactly to the shot duration. Preserve immediate comprehension, escalating pressure, visible choices, retention hooks, and cliffhanger cuts at the peak before explanation or reaction.`;
+};
+
 const commonContract = (request: CodexWorkflowRequest): string => `
 You are the authenticated Vertix screenplay worker. Invent original microdrama material with a real language model.
 Do not edit files, execute commands, browse, or contact external services. Produce content only.
@@ -141,7 +224,7 @@ Mandatory workflow order:
 2. Generate a detailed scene-and-shot script for one episode only when requested.
 3. Generate production-scene cores only from an existing detailed script approved by the user.
 
-The project is a vertical serialized microdrama. Every video shot has a variable duration from 1 second up to the project's maxShotDurationSeconds, normally up to 10 seconds. Choose only the duration needed for that beat; never exceed the configured cap. Dialogue plus action row durations must add exactly to the shot duration. Preserve immediate comprehension, escalating pressure, visible choices, retention hooks, and cliffhanger cuts at the peak before explanation or reaction.
+${shotTimingContract(request)}
 
 The app owns cinematography suffixes, visual-style locks, text locks, audio locks, and negative prompts. For production scenes, return only scene-specific dynamic aiShortCore text and structured timing/audio fields. Never bake fixed style or negative locks into aiShortCore.
 
@@ -177,6 +260,21 @@ result shape:
 Invent a distinctive series title. Include at least 4 characters, 3 environments and 3 props. Write logline and names in the project language.
 `;
 
+const sheetsContract = `
+LOCKED SERIES RULE: Keep the existing title, logline, protagonist, opposing_force, central_question, episodes, episode_cards, hook_chain and scripts unchanged. Do not invent a new series. Do not return title, episodes, episode_cards or hook_chain.
+Create only story sheets for the SCOPE in USER_INSTRUCTION.
+result shape:
+{
+  "seriesBiblePatch": {
+    "characters": [{"reference_id":"...","name":"...","role":"...","appearance":"...","personality":["..."],"dramatic_function":"...","goal":"...","wound":"...","arc":"...","visual_contract":"..."}],
+    "environments": [{"reference_id":"...","name":"...","description":"...","permanent_elements":["..."],"lighting_contract":"...","continuity_rules":["..."]}],
+    "props": [{"reference_id":"...","name":"...","description":"...","story_function":"...","continuity_rules":["..."]}]
+  },
+  "references": [{"id":"same reference_id","label":"...","category":"CHARACTER_MASTER or LOCATION_MASTER or PROP_MASTER","description":"canonical image prompt-ready description","canonical":true,"metadata":{}}]
+}
+Reuse names, roles and reference_ids already in PROJECT_DATA_JSON. Expand them into complete visual and dramatic sheets. If SCOPE is characters, omit environments and props. If SCOPE is locations, omit characters and props. If SCOPE is props, omit characters and environments. For SCOPE all, include at least 4 characters, 3 environments and 3 props. Write in the project language.
+`;
+
 const oneEpisodeContract = (episodeNumber: number, target: number, durationSeconds: number) => `
 Create only episode ${episodeNumber} of ${target}.
 result shape:
@@ -202,7 +300,7 @@ resultJson shape:
     "production_status":"BLOCKED_BY_SCRIPT_APPROVAL"
   }
 }
-Use contiguous shot numbers across scenes. Each shot duration must be between 1 and max_shot_duration_seconds. Every shot's row durations must sum exactly to that shot. All shot durations must sum exactly to the episode duration. Include actions, performable dialogue, cast, location, dramatic beat, and a final irreversible cliffhanger shot. The first scene must realize this episode's opening_pickup from hook_chain. The last shot must stage final_hook and cut before answering unresolved_questions. Do not create production video prompts or takes yet.
+Use contiguous shot numbers across scenes. Each shot duration must follow the project's shot timing rule in PROJECT_DATA_JSON: if shot_duration_mode is FIXED, every shot lasts exactly max_shot_duration_seconds; otherwise each shot is between 1 and max_shot_duration_seconds. Every shot's row durations must sum exactly to that shot. All shot durations must sum exactly to the episode duration. Include actions, performable dialogue, cast, location, dramatic beat, and a final irreversible cliffhanger shot. The first scene must realize this episode's opening_pickup from hook_chain. The last shot must stage final_hook and cut before answering unresolved_questions. Do not create production video prompts or takes yet.
 
 LOCKED STORY RULE: Dramatize only lockedEpisode / the selected episode outline. Keep the same characters, locations, and plot. If the outline is a cafeteria reunion, do not invent palaces, kings, or a different cast.
 `;
@@ -232,6 +330,8 @@ const buildPrompt = (request: CodexWorkflowRequest): string => {
   );
   const actionContract = request.action === 'GENERATE_SERIES_OUTLINE'
     ? bibleContract
+    : request.action === 'GENERATE_STORY_SHEETS'
+      ? sheetsContract
     : request.action === 'GENERATE_EPISODE_SCRIPT'
       ? episodeScriptContract
       : request.action === 'GENERATE_PRODUCTION_SCENES'
@@ -463,7 +563,8 @@ const generateEpisodeScriptInStages = async (
     || Number(locked.durationSeconds)
     || Number(card.duration_seconds)
     || 60;
-  const maxShot = Number(asMap(bible.config).max_shot_duration_seconds) || 10;
+  const maxShot = shotTimingFromProject(asMap(request.project)).maxShot;
+  const shotFixed = shotTimingFromProject(asMap(request.project)).fixed;
   const title = String(episode.title || locked.title || card.title || `EP${episodeNumber}`).trim();
   const lockRule = `
 LOCKED STORY RULE: Dramatize only this episode. Keep the same characters, locations, and plot.
@@ -495,6 +596,7 @@ Do not invent a different world, royal court, or unrelated cast.
     approved_by_user: false,
     duration_seconds: duration,
     max_shot_duration_seconds: maxShot,
+    shot_duration_mode: shotFixed ? 'FIXED' : 'VARIABLE_UP_TO_LIMIT',
     scene_count: 0,
     shot_count: 0,
     display_script: '',
@@ -579,7 +681,7 @@ Do not invent a different world, royal court, or unrelated cast.
     await publish(pct, `Escrevendo a cena ${plannedScene.scene}/${planned.length}...`, true);
     const sceneResult = await generateJson(
       model,
-      `${commonContract(request)}\n${episodeScriptContract}\n${lockRule}\nWrite ONLY scene ${plannedScene.scene} of ${planned.length} for episode ${episodeNumber}. Scene duration must be exactly ${plannedScene.duration_seconds}s. Shot numbers must start at ${shotNumber} and be contiguous. Each shot 1-${maxShot}s. Row durations must sum to the shot. Return result shape: {"scene":{"episode":${episodeNumber},"scene":${plannedScene.scene},"title":${JSON.stringify(plannedScene.title || '')},"location_id":${JSON.stringify(plannedScene.location_id || '')},"location":${JSON.stringify(plannedScene.location || '')},"time_of_day":${JSON.stringify(plannedScene.time_of_day || 'DAY')},"interior_exterior":${JSON.stringify(plannedScene.interior_exterior || 'INT')},"dramatic_beat":${JSON.stringify(plannedScene.dramatic_beat || '')},"cast_ids":${JSON.stringify(plannedScene.cast_ids || [])},"cast":${JSON.stringify(plannedScene.cast || [])},"story":${JSON.stringify(plannedScene.story || '')},"status":"DRAFT_REVIEW_REQUIRED","shots":[{"number":${shotNumber},"title":"...","duration_seconds":8,"status":"DRAFT_REVIEW_REQUIRED","final_state":"...","rows":[{"type":"action","text":"...","duration_seconds":2}]}]}}\nPREVIOUS_SCENES_JSON:\n${JSON.stringify(scriptBase.scenes)}\nSCENE_PLAN_JSON:\n${JSON.stringify(plannedScene)}\nLOCKED_STORY_JSON:\n${JSON.stringify({ ...compact, lockedEpisode: locked })}`,
+      `${commonContract(request)}\n${episodeScriptContract}\n${lockRule}\nWrite ONLY scene ${plannedScene.scene} of ${planned.length} for episode ${episodeNumber}. Scene duration must be exactly ${plannedScene.duration_seconds}s. Shot numbers must start at ${shotNumber} and be contiguous. ${shotFixed ? `Each shot must last exactly ${maxShot}s.` : `Each shot 1-${maxShot}s.`} Row durations must sum to the shot. Return result shape: {"scene":{"episode":${episodeNumber},"scene":${plannedScene.scene},"title":${JSON.stringify(plannedScene.title || '')},"location_id":${JSON.stringify(plannedScene.location_id || '')},"location":${JSON.stringify(plannedScene.location || '')},"time_of_day":${JSON.stringify(plannedScene.time_of_day || 'DAY')},"interior_exterior":${JSON.stringify(plannedScene.interior_exterior || 'INT')},"dramatic_beat":${JSON.stringify(plannedScene.dramatic_beat || '')},"cast_ids":${JSON.stringify(plannedScene.cast_ids || [])},"cast":${JSON.stringify(plannedScene.cast || [])},"story":${JSON.stringify(plannedScene.story || '')},"status":"DRAFT_REVIEW_REQUIRED","shots":[{"number":${shotNumber},"title":"...","duration_seconds":8,"status":"DRAFT_REVIEW_REQUIRED","final_state":"...","rows":[{"type":"action","text":"...","duration_seconds":2}]}]}}\nPREVIOUS_SCENES_JSON:\n${JSON.stringify(scriptBase.scenes)}\nSCENE_PLAN_JSON:\n${JSON.stringify(plannedScene)}\nLOCKED_STORY_JSON:\n${JSON.stringify({ ...compact, lockedEpisode: locked })}`,
       3200,
     );
     const scene = asMap(sceneResult.scene || sceneResult);
@@ -621,6 +723,84 @@ Do not invent a different world, royal court, or unrelated cast.
   };
 };
 
+const storySheetsProgressMessage = (instruction?: string): string => {
+  const scope = String(instruction || '').toLowerCase();
+  if (scope.includes('personagen') || scope.includes('character')) {
+    return 'Gerando fichas de personagens a partir do esboço existente...';
+  }
+  if (scope.includes('ambiente') || scope.includes('location')) {
+    return 'Gerando fichas de ambientes a partir do esboço existente...';
+  }
+  if (scope.includes('adere') || scope.includes('prop')) {
+    return 'Gerando fichas de adereços a partir do esboço existente...';
+  }
+  return 'Gerando fichas de personagens, ambientes e adereços...';
+};
+
+const sanitizeStorySheetsResult = (raw: JsonMap): JsonMap => {
+  const nestedPatch = asMap(raw.projectPatch);
+  const patch = {
+    ...asMap(raw.seriesBiblePatch),
+    ...asMap(nestedPatch.seriesBiblePatch),
+  };
+  delete patch.title;
+  delete patch.logline;
+  delete patch.protagonist;
+  delete patch.opposing_force;
+  delete patch.central_question;
+  delete patch.big_expectation;
+  delete patch.episode_cards;
+  delete patch.hook_chain;
+  delete patch.episode_scripts;
+  delete patch.scene_cards;
+  const references = Array.isArray(raw.references)
+    ? raw.references
+    : Array.isArray(nestedPatch.references)
+      ? nestedPatch.references
+      : [];
+  return {
+    seriesBiblePatch: patch,
+    references,
+  };
+};
+
+const generateStorySheets = async (
+  request: CodexWorkflowRequest,
+  model: string,
+  onProgress: ProgressCallback,
+): Promise<JsonMap> => {
+  const message = storySheetsProgressMessage(request.instruction);
+  await onProgress(12, message, {
+    action: request.action,
+    summary: message,
+    conversation: message,
+    partial: true,
+    provider: 'openrouter',
+    model,
+  });
+  const raw = await generateJson(model, buildPrompt(request), 5000);
+  const result = sanitizeStorySheetsResult(raw);
+  const characters = Array.isArray(result.seriesBiblePatch.characters)
+    ? result.seriesBiblePatch.characters.length
+    : 0;
+  const environments = Array.isArray(result.seriesBiblePatch.environments)
+    ? result.seriesBiblePatch.environments.length
+    : 0;
+  const props = Array.isArray(result.seriesBiblePatch.props)
+    ? result.seriesBiblePatch.props.length
+    : 0;
+  const summary = `Fichas prontas: ${characters} personagens, ${environments} ambientes, ${props} adereços.`;
+  return {
+    action: request.action,
+    summary,
+    result,
+    conversation: summary,
+    partial: false,
+    provider: 'openrouter',
+    model,
+  };
+};
+
 const runCodexTextAction = async (
   request: CodexWorkflowRequest,
   onProgress: ProgressCallback,
@@ -633,6 +813,9 @@ const runCodexTextAction = async (
   );
   if (request.action === 'GENERATE_SERIES_OUTLINE') {
     return generateOutlineInStages(request, model, onProgress);
+  }
+  if (request.action === 'GENERATE_STORY_SHEETS') {
+    return generateStorySheets(request, model, onProgress);
   }
   if (request.action === 'GENERATE_EPISODE_SCRIPT') {
     return generateEpisodeScriptInStages(request, model, onProgress);
