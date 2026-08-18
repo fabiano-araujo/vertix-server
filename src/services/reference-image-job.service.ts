@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import sharp from 'sharp';
 
 import { prisma } from './prisma';
+import { compileReferenceImagePrompt } from './reference-image-prompt.service';
 import seriesCatalogService from './series-catalog.service';
 
 export const REFERENCE_IMAGE_JOB_TYPE = 'CODEX_GENERATE_REFERENCE_IMAGES';
@@ -89,33 +90,6 @@ const parseJsonObject = <T>(value?: string | null): T => {
 const cleanText = (value: unknown, maxLength: number): string =>
   String(value || '').trim().slice(0, maxLength);
 
-const promptForReference = (reference: ReferenceImageJobRequestItem): string => {
-  const suppliedPrompt = cleanText(reference.prompt, 20_000);
-  if (suppliedPrompt) return suppliedPrompt;
-
-  const description = cleanText(reference.description, 12_000);
-  const metadata = reference.metadata && typeof reference.metadata === 'object'
-    ? JSON.stringify(reference.metadata)
-    : '';
-  const category = cleanText(reference.category, 120).toUpperCase();
-  const assetType = category.includes('CHARACTER') || category.includes('OPPOSING_FORCE')
-    ? 'master visual de personagem, corpo inteiro e identidade claramente legivel'
-    : category.includes('PROP') || category.includes('OBJECT')
-      ? 'master visual de objeto/adereco, produto isolado e detalhes legiveis'
-      : 'master visual de ambiente, plano amplo e geografia espacial legivel';
-
-  return [
-    `Crie um ${assetType} para continuidade cinematografica da serie Vertix.`,
-    `Referencia: ${cleanText(reference.label, 180)}.`,
-    description ? `Descricao aprovada: ${description}` : '',
-    metadata && metadata !== '{}'
-      ? `Contrato e metadados aprovados: ${metadata.slice(0, 12_000)}`
-      : '',
-    'Composicao 16:9, alta qualidade, aparencia cinematografica realista, sem texto, sem logotipo e sem marca-dagua.',
-    'Nao invente personagens, objetos ou elementos narrativos que nao estejam na ficha.',
-  ].filter(Boolean).join('\n');
-};
-
 const normalizeReferences = (
   references: ReferenceImageJobRequestItem[] | undefined,
 ): StoredReference[] => {
@@ -139,14 +113,25 @@ const normalizeReferences = (
     const metadata = reference.metadata && typeof reference.metadata === 'object'
       ? reference.metadata
       : {};
+    const compiledPrompt = compileReferenceImagePrompt({
+      label,
+      category,
+      description: cleanText(reference.description, 12_000),
+      prompt: cleanText(reference.prompt, 20_000),
+      metadata,
+    });
     return {
       id,
       label,
       category,
       description: cleanText(reference.description, 12_000),
-      prompt: promptForReference(reference),
+      prompt: compiledPrompt.prompt,
       canonical: reference.canonical !== false,
-      metadata,
+      metadata: {
+        ...metadata,
+        promptContract: compiledPrompt.promptContract,
+        visualReferenceMode: compiledPrompt.visualReferenceMode,
+      },
     };
   });
 };
