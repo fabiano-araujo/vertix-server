@@ -1,4 +1,5 @@
 import fastify from 'fastify';
+import dotenv from 'dotenv';
 import process from 'process';
 import routes from './routes/index';
 import path from 'path';
@@ -6,7 +7,12 @@ import * as subscriptionRepository from './repositories/subscription.repository'
 const fastifyCors = require('@fastify/cors');
 const fastifyStatic = require('@fastify/static');
 
-const app = fastify({ logger: false });
+dotenv.config();
+
+const app = fastify({
+    logger: false,
+    bodyLimit: 50 * 1024 * 1024,
+});
 
 app.register(fastifyCors, {
     origin: '*', // Permitir todas as origens. Ajuste conforme necessário.

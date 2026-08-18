@@ -13,6 +13,8 @@ import feedRoutes from "./feed.routes";
 import commentRoutes from "./comment.routes";
 import searchRoutes from "./search.routes";
 import adminRoutes from "./admin.routes";
+import openrouterVideoRoutes from "./openrouter-video.routes";
+import dolaRoutes from "./dola.routes";
 
 const router = (app: any) => {
     // Existing routes
@@ -31,6 +33,10 @@ const router = (app: any) => {
     commentRoutes(app);
     searchRoutes(app);
     adminRoutes(app);
+    openrouterVideoRoutes(app);
+    if (process.env.DOLA_ENABLED === 'true') {
+        dolaRoutes(app);
+    }
 }
 
 export default router;

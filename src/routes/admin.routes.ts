@@ -13,6 +13,50 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     handler: adminController.generateSeries,
   });
 
+  fastify.post('/admin/codex/jobs', {
+    preHandler,
+    bodyLimit: 10 * 1024 * 1024,
+    handler: adminController.startCodexWorkflow,
+  });
+
+  fastify.post('/admin/series', {
+    preHandler,
+    handler: adminController.createSeries,
+  });
+
+  fastify.get('/admin/series/available', {
+    preHandler,
+    handler: adminController.listAvailableSeries,
+  });
+
+  fastify.get('/admin/series/:id/production', {
+    preHandler,
+    handler: adminController.getSeriesProduction,
+  });
+
+  fastify.post('/admin/series/:id/production', {
+    preHandler,
+    bodyLimit: 30 * 1024 * 1024,
+    handler: adminController.saveSeriesProduction,
+  });
+
+  fastify.post('/admin/series/:id/catalog-assets', {
+    preHandler,
+    bodyLimit: 30 * 1024 * 1024,
+    handler: adminController.syncSeriesCatalogAssets,
+  });
+
+  fastify.post('/admin/series/:id/references', {
+    preHandler,
+    bodyLimit: 30 * 1024 * 1024,
+    handler: adminController.ingestSeriesReference,
+  });
+
+  fastify.post('/admin/series/:id/production/upload-url', {
+    preHandler,
+    handler: adminController.getSeriesProductionUploadUrl,
+  });
+
   // Jobs
   fastify.get('/admin/jobs', {
     preHandler,

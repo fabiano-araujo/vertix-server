@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gerador de vídeo em 2 partes</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>Gerador de vídeo em 2 partes</h1>
+          <p>Crie a parte 1, continue pela parte 2 e junte tudo no vídeo final.</p>
+        </div>
+        <div class="status-pill" id="networkStatus">Pronto</div>
+      </header>
+
+      <section class="panel status-panel">
+        <div class="status-main">
+          <div>
+            <span class="eyebrow">Agora</span>
+            <strong id="currentStatus">Site carregado.</strong>
+          </div>
+          <span id="runClock">00:00</span>
+        </div>
+
+        <div class="progress-list" id="progressList"></div>
+
+        <details class="status-details">
+          <summary>Detalhes técnicos</summary>
+          <div class="title-actions status-actions">
+            <button class="ghost-button" type="button" id="clearCacheButton">Limpar cache</button>
+            <button class="ghost-button" type="button" id="clearLogButton">Limpar log</button>
+          </div>
+          <pre id="logOutput"></pre>
+        </details>
+      </section>
+
+      <section class="control-grid">
+        <section class="panel action-panel">
+          <div class="panel-title">
+            <h2>Gerar vídeo</h2>
+            <span>fila local</span>
+          </div>
+
+          <div class="mode-hint" id="modeHint">Parte 2: referências visuais, sem first_frame.</div>
+
+          <div class="button-stack">
+            <button class="primary-button" type="button" id="runBothButton">Gerar completo</button>
+            <button type="button" id="runTake1Button">Parte 1</button>
+            <button type="button" id="runTake2Button">Parte 2</button>
+            <button type="button" id="assembleButton">Juntar</button>
+          </div>
+
+          <div class="manual-download">
+            <label>
+              Baixar resultado já criado
+              <input id="existingJobInput" type="text" placeholder="cole o jobId aqui" />
+            </label>
+            <button class="ghost-button" type="button" id="downloadExistingButton">Baixar</button>
+          </div>
+        </section>
+
+        <form class="panel settings-panel" id="settingsForm">
+          <div class="panel-title">
+            <h2>Ajustes básicos</h2>
+            <button class="ghost-button" type="button" id="loadModelsButton">Modelos</button>
+          </div>
+
+          <label>
+            Token admin
+            <input id="adminTokenInput" type="password" placeholder="Bearer token do admin" autocomplete="off" />
+          </label>
+
+          <div class="inline-grid two">
+            <button class="ghost-button" type="button" id="loadAdminSeriesButton">Carregar séries</button>
+            <button class="ghost-button" type="button" id="saveProductionButton">Salvar na série</button>
+          </div>
+
+          <label>
+            Série disponível
+            <select id="seriesSelect">
+              <option value="">Carregue as séries admin</option>
+            </select>
+          </label>
+
+          <div class="mode-hint" id="seriesSummary">Selecione uma série para salvar prompts, pontos e referências no banco.</div>
+
+          <label>
+            Serviço
+            <select id="providerInput">
+              <option value="openrouter" selected>OpenRouter</option>
+              <option value="segmind">Segmind</option>
+              <option value="wavespeed">WaveSpeed</option>
+            </select>
+          </label>
+
+          <label>
+            Modelo de vídeo
+            <input id="modelInput" type="text" value="bytedance/seedance-2.5" />
+          </label>
+
+          <div class="inline-grid">
+            <label>
+              Duração (segundos)
+              <input id="durationInput" type="number" min="1" max="15" value="15" />
+            </label>
+            <label>
+              Resolução
+              <select id="resolutionInput">
+                <option selected>480p</option>
+                <option>720p</option>
+                <option>1080p</option>
+              </select>
+            </label>
+            <label>
+              Aspecto
+              <select id="aspectInput">
+                <option selected>9:16</option>
+                <option>16:9</option>
+                <option>1:1</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="inline-grid two">
+            <label>
+              Variação da parte 1
+              <input id="seedTake1Input" type="number" value="811601" />
+            </label>
+            <label>
+              Variação da parte 2
+              <input id="seedTake2Input" type="number" value="811602" />
+            </label>
+          </div>
+
+          <label class="check-row">
+            <input id="useSeedInput" type="checkbox" checked />
+            <span>Enviar seed de variação</span>
+          </label>
+
+          <label class="check-row">
+            <input id="audioInput" type="checkbox" checked />
+            <span>Gerar áudio</span>
+          </label>
+
+          <label class="check-row">
+            <input id="uploadFrameInput" type="checkbox" />
+            <span>Extrair último frame para revisão</span>
+          </label>
+        </form>
+      </section>
+
+      <section class="media-grid">
+        <article class="panel result-panel">
+          <div class="panel-title">
+            <h2>Parte 1</h2>
+            <span id="take1JobId">aguardando</span>
+          </div>
+          <video id="take1Video" controls playsinline></video>
+          <div class="frame-row">
+            <img id="take1Frame" alt="Último frame do take 1" />
+            <div class="result-links" id="take1Links"></div>
+          </div>
+        </article>
+
+        <article class="panel result-panel">
+          <div class="panel-title">
+            <h2>Parte 2</h2>
+            <span id="take2JobId">aguardando</span>
+          </div>
+          <video id="take2Video" controls playsinline></video>
+          <div class="frame-row">
+            <img id="take2Frame" alt="Último frame do take 2" />
+            <div class="result-links" id="take2Links"></div>
+          </div>
+        </article>
+
+        <article class="panel result-panel assembled-panel">
+          <div class="panel-title">
+            <h2>Vídeo final</h2>
+            <span id="assembledStatus">aguardando</span>
+          </div>
+          <video id="assembledVideo" controls playsinline></video>
+          <div class="result-links assembled-links" id="assembledLinks"></div>
+        </article>
+      </section>
+
+      <details class="panel prompt-shell">
+        <summary>
+          <span>
+            <strong>Roteiro e imagens</strong>
+            <small>prompts, referências e continuidade visual</small>
+          </span>
+          <span>Mostrar</span>
+        </summary>
+
+        <section class="prompt-grid">
+          <article class="prompt-block voice-block">
+            <div class="panel-title compact-title">
+              <h2>Vozes</h2>
+              <span>ElevenLabs</span>
+            </div>
+            <div class="title-actions prompt-actions">
+              <button class="ghost-button" type="button" id="generateVoiceRefsButton">Gerar vozes ElevenLabs</button>
+            </div>
+            <div class="mode-hint">
+              Seedance 2.0: use no máximo 3 áudios por take. Envie apenas as vozes dos personagens que falam no take.
+            </div>
+            <label>
+              Mapa de vozes geradas
+              <textarea id="voiceMapOutput" class="references-textarea" spellcheck="false" readonly></textarea>
+            </label>
+          </article>
+
+          <article class="prompt-block">
+            <div class="panel-title compact-title">
+              <h2>Take 1</h2>
+              <span>referências</span>
+            </div>
+            <label>
+              Referências visuais da parte 1
+              <textarea id="referencesInput" class="references-textarea" spellcheck="false"></textarea>
+            </label>
+            <label>
+              Referências de áudio da parte 1
+              <textarea id="audioReferencesInput" class="references-textarea audio-textarea" spellcheck="false"></textarea>
+            </label>
+            <label>
+              Prompt
+              <textarea id="take1Prompt" class="prompt-textarea" spellcheck="false"></textarea>
+            </label>
+          </article>
+
+          <article class="prompt-block">
+            <div class="panel-title compact-title">
+              <h2>Take 2</h2>
+              <span>continuação</span>
+            </div>
+            <div class="title-actions prompt-actions">
+              <button class="ghost-button" type="button" id="copyReferencesButton">Copiar refs da parte 1</button>
+            </div>
+            <label>
+              Frame inicial
+              <input id="firstFrameInput" type="url" placeholder="desativado: use referências no take 2" disabled />
+            </label>
+            <label>
+              Referências visuais da parte 2
+              <textarea id="referencesTake2Input" class="references-textarea" spellcheck="false"></textarea>
+            </label>
+            <label>
+              Referências de áudio da parte 2
+              <textarea id="audioReferencesTake2Input" class="references-textarea audio-textarea" spellcheck="false"></textarea>
+            </label>
+            <label>
+              Prompt
+              <textarea id="take2Prompt" class="prompt-textarea take2" spellcheck="false"></textarea>
+            </label>
+          </article>
+        </section>
+      </details>
+    </main>
+
+    <script src="./app.js?v=seedance-25-default"></script>
+  </body>
+</html>

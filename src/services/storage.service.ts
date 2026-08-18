@@ -35,8 +35,18 @@ export interface SeriesStorageConfig {
   seriesId: number | string;
 }
 
-type ImageFolder = 'covers' | 'thumbnails' | 'profiles' | 'frames';
+type ImageFolder =
+  | 'covers'
+  | 'thumbnails'
+  | 'profiles'
+  | 'frames'
+  | 'references'
+  | 'characters'
+  | 'environments'
+  | 'objects'
+  | 'storyboards';
 type ContentType = 'video/mp4' | 'video/webm' | 'image/jpeg' | 'image/png' | 'image/webp';
+type UploadContentType = ContentType | 'image/gif' | 'audio/mpeg' | 'audio/mp3' | 'application/json' | 'text/plain' | 'text/vtt' | 'application/x-subrip' | string;
 
 // ============================================
 // VIDEO UPLOAD
@@ -193,6 +203,45 @@ export const uploadBase64Image = async (
   return uploadImage(buffer, filename, folder, seriesId);
 };
 
+/**
+ * Upload production reference assets to R2.
+ * Used by the Seedance pipeline for character, environment, object, storyboard,
+ * and continuity-frame references that must stay available outside local files.
+ */
+export const uploadReferenceAsset = async (
+  buffer: Buffer,
+  filename: string,
+  category: string,
+  seriesId: number | string,
+  contentType?: string
+): Promise<UploadResult> => {
+  const extension = path.extname(filename) || extensionFromContentType(contentType) || '.jpg';
+  const uniqueId = uuidv4();
+  const safeCategory = String(category || 'reference')
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'reference';
+  const key = `content/series/${seriesId}/references/${safeCategory}/${uniqueId}${extension}`;
+
+  await r2Client.send(
+    new PutObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+      Body: buffer,
+      ContentType: contentType || getImageContentType(extension),
+      CacheControl: 'public, max-age=31536000',
+    })
+  );
+
+  console.log(`[Storage] Reference uploaded: ${key}`);
+
+  return {
+    key,
+    publicUrl: `${R2_PUBLIC_URL}/${key}`,
+    size: buffer.length,
+  };
+};
+
 // ============================================
 // URL HELPERS
 // ============================================
@@ -212,7 +261,7 @@ export const getPublicUrl = (key: string): string => {
  */
 export const getSignedUploadUrl = async (
   key: string,
-  contentType: ContentType,
+  contentType: UploadContentType,
   expiresIn: number = 3600 // 1 hour default
 ): Promise<string> => {
   const command = new PutObjectCommand({
@@ -222,6 +271,44 @@ export const getSignedUploadUrl = async (
   });
 
   return await getSignedUrl(r2Client, command, { expiresIn });
+};
+
+const safePathPart = (value: string): string => {
+  return String(value || 'asset')
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'asset';
+};
+
+const extensionFromFilename = (filename: string): string => {
+  const extension = path.extname(filename || '').toLowerCase();
+  return extension || '.bin';
+};
+
+/**
+ * Generate a pre-signed upload URL for any production asset.
+ */
+export const generateProductionAssetUploadUrl = async (
+  seriesId: number | string,
+  filename: string,
+  category: string = 'pipeline',
+  contentType: UploadContentType = 'application/octet-stream',
+  expiresIn: number = 3600,
+): Promise<{ uploadUrl: string; key: string; publicUrl: string; contentType: string }> => {
+  const uniqueId = uuidv4();
+  const safeCategory = safePathPart(category);
+  const safeName = safePathPart(path.basename(filename || `asset${extensionFromContentType(contentType) || '.bin'}`));
+  const extension = extensionFromFilename(safeName);
+  const basename = safeName.slice(0, -extension.length) || 'asset';
+  const key = `content/series/${seriesId}/references/${safeCategory}/${basename}-${uniqueId}${extension}`;
+  const uploadUrl = await getSignedUploadUrl(key, contentType, expiresIn);
+
+  return {
+    uploadUrl,
+    key,
+    publicUrl: `${R2_PUBLIC_URL}/${key}`,
+    contentType,
+  };
 };
 
 /**
@@ -360,6 +447,15 @@ function getImageContentType(extension: string): ContentType {
   return 'image/jpeg';
 }
 
+function extensionFromContentType(contentType?: string): string | null {
+  const normalized = String(contentType || '').toLowerCase();
+  if (normalized.includes('png')) return '.png';
+  if (normalized.includes('webp')) return '.webp';
+  if (normalized.includes('jpeg') || normalized.includes('jpg')) return '.jpg';
+  if (normalized.includes('gif')) return '.gif';
+  return null;
+}
+
 // ============================================
 // EXPORTS
 // ============================================
@@ -372,6 +468,8 @@ export default {
   uploadImage,
   uploadImageFromUrl,
   uploadBase64Image,
+  uploadReferenceAsset,
+  generateProductionAssetUploadUrl,
   // URLs
   getPublicUrl,
   getSignedUploadUrl,

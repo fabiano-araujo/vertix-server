@@ -11,28 +11,25 @@ const SITE_URL = process.env.SITE_URL || 'http://localhost:3000';
 const SITE_NAME = process.env.SITE_NAME || 'Projeto Base';
 const API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
-// Para debugging
-console.log('API KEY (primeiros 10 caracteres):', OPENROUTER_API_KEY.substring(0, 10) + '...');
-
 // Modelos disponíveis
 export const AVAILABLE_MODELS = {
-  // OpenAI Models
+  DEEPSEEK_V4_FLASH: 'deepseek/deepseek-v4-flash-0731',
   GPT_4O_MINI: 'openai/gpt-4o-mini',
   GPT_OSS_20B: 'openai/gpt-oss-20b',
-
-  // Gemma models
-  GEMMA_3_12B_IT: 'google/gemma-3-12b-it', // Corrigido de 8B para 12B
-  GEMMA_3_4B_IT: 'google/gemma-3-4b-it',   // Corrigido de 2B para 4B
+  GEMMA_3_12B_IT: 'google/gemma-3-12b-it',
+  GEMMA_3_4B_IT: 'google/gemma-3-4b-it',
   GEMMA_3_27B_IT: 'google/gemma-3-27b-it',
-  
-  // Claude models
   CLAUDE_3_OPUS: 'anthropic/claude-3-opus:beta',
   CLAUDE_3_SONNET: 'anthropic/claude-3-sonnet',
   CLAUDE_3_HAIKU: 'anthropic/claude-3-haiku',
-  
-  // Mistral models
-  MISTRAL_SMALL_3_1_24B: 'mistralai/mistral-small-3.1-24b-instruct'
+  MISTRAL_SMALL_3_1_24B: 'mistralai/mistral-small-3.1-24b-instruct',
 };
+
+// :nitro = sort throughput (mais rápido). Sem sufixo o OpenRouter usa o roteamento padrão (Balanced).
+const OPENROUTER_ROUTING_SUFFIX = /:(nitro|floor|exacto)\b/gi;
+
+const toDefaultProviderModel = (model: string): string =>
+  model.replace(OPENROUTER_ROUTING_SUFFIX, '').trim();
 
 // Tipos para as mensagens
 interface TextContent {
@@ -151,7 +148,7 @@ export const analyzeImage = async (
 
     // Versão simplificada da mensagem para compatibilidade
     const request = {
-      model,
+      model: toDefaultProviderModel(model),
       messages: [
         {
           role: 'user',
@@ -233,10 +230,21 @@ export const generateText = async (
     max_tokens?: number;
     model?: string;
     streaming?: boolean;
+    timeout?: number;
+    reasoning?: {
+      effort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+      max_tokens?: number;
+      exclude?: boolean;
+    };
+    response_format?: { type: 'json_object' | 'text' };
   } = {},
   abortController?: AbortController
 ): Promise<string | Readable> => {
   try {
+    if (!OPENROUTER_API_KEY.trim()) {
+      throw new Error('OPENROUTER_API_KEY nao configurada no servidor');
+    }
+
     const streaming = options.streaming || false;
 
     // Constrói as mensagens baseado no tipo do prompt
@@ -249,16 +257,24 @@ export const generateText = async (
       messages = [{ role: 'user', content: prompt }];
     }
 
-    // Versão simplificada para compatibilidade
-    const request = {
-      model: options.model || AVAILABLE_MODELS.GEMMA_3_27B_IT,
+    // Sem `provider.sort` / `:nitro`: o OpenRouter escolhe o provedor padrão (Balanced).
+    const request: Record<string, unknown> = {
+      model: toDefaultProviderModel(options.model || AVAILABLE_MODELS.DEEPSEEK_V4_FLASH),
       messages: messages,
       temperature: options.temperature,
       max_tokens: options.max_tokens,
       stream: streaming
     };
+    if (options.response_format) {
+      request.response_format = options.response_format;
+    }
+    if (options.reasoning) {
+      request.reasoning = options.reasoning;
+    }
 
-    console.log(`Enviando requisição para gerar texto com o modelo ${request.model} (streaming: ${streaming}):`, JSON.stringify(request, null, 2));
+    console.log(
+      `Enviando texto para OpenRouter model=${request.model} streaming=${streaming} max_tokens=${options.max_tokens || 'default'}`,
+    );
 
     // Configuração básica para a requisição
     const config = {
@@ -268,7 +284,8 @@ export const generateText = async (
         'X-Title': SITE_NAME,
         'Content-Type': 'application/json'
       },
-      signal: abortController ? abortController.signal : undefined
+      signal: abortController ? abortController.signal : undefined,
+      timeout: options.timeout || 180000,
     };
 
     if (streaming) {
@@ -284,14 +301,20 @@ export const generateText = async (
       return response.data;
     } else {
       const response = await axios.post<OpenRouterResponse>(API_URL, request, config);
-
-      console.log('Resposta recebida:', JSON.stringify(response.data, null, 2));
-
-      if (response.data && response.data.choices && response.data.choices.length > 0) {
-        return response.data.choices[0].message.content;
+      const choice = response.data?.choices?.[0] as any;
+      const content = typeof choice?.message?.content === 'string'
+        ? choice.message.content
+        : '';
+      const usage = response.data?.usage as any;
+      console.log(
+        `OpenRouter ok model=${request.model} finish=${choice?.finish_reason || 'unknown'} content_len=${content.length} completion=${usage?.completion_tokens || 0} reasoning=${usage?.completion_tokens_details?.reasoning_tokens || 0}`,
+      );
+      if (content.trim()) {
+        return content;
       }
-      
-      throw new Error('Resposta vazia do OpenRouter');
+      throw new Error(
+        `OpenRouter retornou resposta vazia (finish=${choice?.finish_reason || 'unknown'}, reasoning_tokens=${usage?.completion_tokens_details?.reasoning_tokens || 0})`,
+      );
     }
   } catch (error: any) {
     // Verifica se o erro foi causado por um abort manual

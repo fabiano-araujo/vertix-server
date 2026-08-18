@@ -57,6 +57,9 @@ model Series {
 
   createdBy       User      @relation("CreatorSeries", fields: [createdById], references: [id])
   episodes        Episode[]
+  productionPlan  SeriesProductionPlan?
+  referenceAssets SeriesReferenceAsset[]
+  storyPoints     SeriesStoryPoint[]
 
   @@index([genre])
   @@index([trendingScore])
@@ -82,6 +85,8 @@ model Episode {
   updatedAt       DateTime  @updatedAt
 
   series          Series    @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  referenceAssets SeriesReferenceAsset[]
+  storyPoints     SeriesStoryPoint[]
   watchHistory    WatchHistory[]
   likes           EpisodeLike[]
   comments        Comment[]
@@ -215,6 +220,89 @@ model AIGenerationJob {
 
   @@index([status])
   @@index([createdById])
+}
+
+model SeriesProductionPlan {
+  id                  Int       @id @default(autoincrement())
+  seriesId            Int       @unique
+  source              String    @default("seedance-series-pipeline")
+  seriesBible         String?   @db.LongText
+  characterBible      String?   @db.LongText
+  locationBible       String?   @db.LongText
+  objectBible         String?   @db.LongText
+  spatialMaps         String?   @db.LongText
+  audioBible          String?   @db.LongText
+  seasonArc           String?   @db.LongText
+  episodeMap          String?   @db.LongText
+  episodeTreatments   String?   @db.LongText
+  sceneCards          String?   @db.LongText
+  storyboardPlan      String?   @db.LongText
+  generationPlan      String?   @db.LongText
+  seedanceNotes       String?   @db.LongText
+  rawPayload          String?   @db.LongText
+  createdById         Int
+  updatedById         Int?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  series              Series    @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  referenceAssets     SeriesReferenceAsset[]
+  storyPoints         SeriesStoryPoint[]
+
+  @@index([createdById])
+  @@index([source])
+}
+
+model SeriesReferenceAsset {
+  id                  Int       @id @default(autoincrement())
+  seriesId            Int
+  episodeId           Int?
+  productionPlanId    Int?
+  category            String
+  label               String
+  sourceUrl           String?   @db.Text
+  storageKey          String
+  publicUrl           String
+  contentType         String?
+  sizeBytes           Int?
+  prompt              String?   @db.LongText
+  metadata            String?   @db.LongText
+  createdById         Int
+  createdAt           DateTime  @default(now())
+
+  series              Series    @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  episode             Episode?  @relation(fields: [episodeId], references: [id], onDelete: SetNull)
+  productionPlan      SeriesProductionPlan? @relation(fields: [productionPlanId], references: [id], onDelete: SetNull)
+
+  @@index([seriesId, category])
+  @@index([episodeId])
+  @@index([productionPlanId])
+  @@index([createdById])
+}
+
+model SeriesStoryPoint {
+  id                  Int       @id @default(autoincrement())
+  seriesId            Int
+  episodeId           Int?
+  productionPlanId    Int?
+  pointType           String
+  title               String
+  body                String    @db.LongText
+  episodeNumber       Int?
+  sceneNumber         Int?
+  segment             String?
+  orderIndex          Int       @default(0)
+  metadata            String?   @db.LongText
+  createdAt           DateTime  @default(now())
+
+  series              Series    @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  episode             Episode?  @relation(fields: [episodeId], references: [id], onDelete: SetNull)
+  productionPlan      SeriesProductionPlan? @relation(fields: [productionPlanId], references: [id], onDelete: SetNull)
+
+  @@index([seriesId, pointType])
+  @@index([episodeId])
+  @@index([productionPlanId])
+  @@index([orderIndex])
 }
 
 // Modelo de assinatura

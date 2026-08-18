@@ -1,86 +1,97 @@
 import { AVAILABLE_MODELS } from '../services/openrouter.service';
 
-/**
- * Configuração de modelos simplificados para facilitar o uso da API
- */
+export const DEFAULT_OPENROUTER_MODEL = 'deepseek/deepseek-v4-flash-0731';
+export const DEFAULT_IMAGE_MODEL = 'gpt-image-2';
 
-// Aliases para facilitar o uso dos modelos
+export const RECOMMENDED_OPENROUTER_MODELS = [
+  {
+    id: DEFAULT_OPENROUTER_MODEL,
+    name: 'DeepSeek V4 Flash',
+    description: 'Padrão do Vertix para esboço, roteiro e takes',
+  },
+  {
+    id: 'deepseek/deepseek-chat',
+    name: 'DeepSeek Chat',
+    description: 'Alternativa DeepSeek mais conversacional',
+  },
+  {
+    id: AVAILABLE_MODELS.GPT_4O_MINI,
+    name: 'GPT-4o mini',
+    description: 'Rápido e barato via OpenRouter',
+  },
+  {
+    id: 'google/gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    description: 'Boa qualidade com contexto longo',
+  },
+  {
+    id: 'anthropic/claude-sonnet-4',
+    name: 'Claude Sonnet 4',
+    description: 'Roteiro mais literário',
+  },
+  {
+    id: AVAILABLE_MODELS.GEMMA_3_27B_IT,
+    name: 'Gemma 3 27B',
+    description: 'Fallback aberto',
+  },
+] as const;
+
 export const MODEL_ALIASES = {
-  // Alias para conversação/chat (padrão)
-  chat: AVAILABLE_MODELS.GPT_OSS_20B,
-  
-  // Alias para processamento de arquivos/documentos
+  chat: DEFAULT_OPENROUTER_MODEL,
   file: AVAILABLE_MODELS.GEMMA_3_12B_IT,
-  
-  // Alias para resumos em inglês
   summary_en: AVAILABLE_MODELS.GEMMA_3_12B_IT,
-  
-  // Alias para tarefas de codificação
   code: AVAILABLE_MODELS.MISTRAL_SMALL_3_1_24B,
-
-  // Alias para modelo de qualidade boa (padrão)
-  bom: AVAILABLE_MODELS.GPT_OSS_20B,
+  bom: DEFAULT_OPENROUTER_MODEL,
 };
 
-/**
- * Função para resolver um alias de modelo para o ID real do modelo
- * @param modelName Nome ou alias do modelo
- * @returns ID real do modelo para uso na API
- */
-export const resolveModel = (modelName: string): string => {
-  // Se não for fornecido, usa o modelo padrão para chat
-  if (!modelName) {
-    return MODEL_ALIASES.chat;
+const looksLikeOpenRouterModel = (value: string): boolean =>
+  /^[a-z0-9._-]+\/[a-z0-9._:+-]+$/i.test(value.trim());
+
+const stripOpenRouterRouting = (value: string): string =>
+  value.replace(/:(nitro|floor|exacto)\b/gi, '').trim();
+
+export const resolveModel = (modelName?: string | null): string => {
+  if (!modelName || !modelName.trim()) {
+    return DEFAULT_OPENROUTER_MODEL;
   }
-  
-  // Verificar se é um alias
-  if (modelName in MODEL_ALIASES) {
-    return MODEL_ALIASES[modelName as keyof typeof MODEL_ALIASES];
+
+  const trimmed = stripOpenRouterRouting(modelName.trim());
+  if (trimmed in MODEL_ALIASES) {
+    return MODEL_ALIASES[trimmed as keyof typeof MODEL_ALIASES];
   }
-  
-  // Verificar se já é um ID válido de modelo
-  const allModelIds = Object.values(AVAILABLE_MODELS);
-  if (allModelIds.includes(modelName as any)) {
-    return modelName;
+
+  const known = Object.values(AVAILABLE_MODELS);
+  if (known.includes(trimmed as (typeof known)[number])) {
+    return trimmed;
   }
-  
-  // Casos especiais - detecção por conteúdo
-  if (modelName.toLowerCase().includes('resumo') && modelName.toLowerCase().includes('english')) {
-    return MODEL_ALIASES.summary_en;
+
+  if (looksLikeOpenRouterModel(trimmed) || trimmed.startsWith('gpt-image')) {
+    return trimmed;
   }
-  
-  // Se não for reconhecido, retorna o modelo padrão
-  console.warn(`Modelo "${modelName}" não reconhecido, usando modelo padrão`);
-  return MODEL_ALIASES.chat;
+
+  console.warn(`Modelo "${trimmed}" não reconhecido, usando o padrão Vertix`);
+  return DEFAULT_OPENROUTER_MODEL;
 };
 
-/**
- * Determina o melhor modelo com base no conteúdo do prompt
- * @param prompt Texto do prompt
- * @returns ID do modelo recomendado
- */
 export const suggestModelByContent = (prompt: string): string => {
   const promptLower = prompt.toLowerCase();
-  
-  // Detecta pedido de resumo em inglês
+
   if (
-    (promptLower.includes('resume') || promptLower.includes('summary')) && 
+    (promptLower.includes('resume') || promptLower.includes('summary')) &&
     (promptLower.includes('english') || promptLower.includes('inglês'))
   ) {
     return MODEL_ALIASES.summary_en;
   }
-  
-  // Detecta processamento de arquivo/documento
+
   if (
-    promptLower.includes('arquivo') || 
-    promptLower.includes('documento') || 
-    promptLower.includes('file') || 
+    promptLower.includes('arquivo') ||
+    promptLower.includes('documento') ||
+    promptLower.includes('file') ||
     promptLower.includes('document')
   ) {
     return MODEL_ALIASES.file;
   }
 
-  // Detecta pedido de código
   if (
     promptLower.includes('código') ||
     promptLower.includes('code') ||
@@ -89,13 +100,15 @@ export const suggestModelByContent = (prompt: string): string => {
   ) {
     return MODEL_ALIASES.code;
   }
-  
-  // Se nenhuma condição específica for atendida, retorna o modelo de chat padrão
+
   return MODEL_ALIASES.chat;
 };
 
 export default {
+  DEFAULT_OPENROUTER_MODEL,
+  DEFAULT_IMAGE_MODEL,
+  RECOMMENDED_OPENROUTER_MODELS,
   MODEL_ALIASES,
   resolveModel,
-  suggestModelByContent
-}; 
+  suggestModelByContent,
+};

@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { generateText, AVAILABLE_MODELS } from './openrouter.service';
 import storageService from './storage.service';
+import seriesProductionService from './series-production.service';
 import { prisma } from './prisma';
 
 // ============================================
@@ -34,6 +35,22 @@ export interface GeneratedScript {
   seriesDescription: string;
   episodes: EpisodeScript[];
   tags: string[];
+  seriesBible?: any;
+  characterBible?: any;
+  locationBible?: any;
+  objectBible?: any;
+  spatialMaps?: any;
+  audioBible?: any;
+  seasonArc?: any;
+  episodeMap?: any;
+  episodeTreatments?: any;
+  sceneCards?: any;
+  storyboardPlan?: any;
+  generationPlan?: any;
+  seedanceNotes?: any;
+  storyPoints?: any;
+  references?: any;
+  referenceAssets?: any;
 }
 
 export interface EpisodeScript {
@@ -129,13 +146,223 @@ PÚBLICO-ALVO: ${config.targetAudience}
 ${config.style ? `ESTILO VISUAL: ${config.style}` : ''}
 IDIOMA: ${config.language || 'Português Brasileiro'}
 
-IMPORTANTE: Cada episódio deve ser vertical (9:16), dinâmico e prender a atenção nos primeiros 3 segundos.
+IMPORTANTE:
+- Cada episódio deve ser vertical (9:16), dinâmico e prender a atenção nos primeiros 3 segundos.
+- Use o fluxo Seedance Series Pipeline: defina bible da série, personagens, ambientes recorrentes, mapas espaciais, bible de áudio, arco, mapa de episódios, tratamento linear do episódio 1, scene cards, segmentação em takes de até 15s, plano de diálogo com tempos, pontos narrativos, referências necessárias e notas de produção.
+- Não escreva clips desconectados de 15s; escreva a história completa primeiro e depois divida em segmentos de geração.
+- Salve ambientes e objetos com o mesmo cuidado dos personagens. Para toda referência visual necessária, declare categoria, label, prompt de imagem/referência e metadados. Se ainda não houver URL real, deixe sourceUrl como null e descreva o asset necessário.
 
 Responda APENAS com um JSON válido no seguinte formato (sem markdown, sem explicações):
 {
   "seriesTitle": "Título da Série",
   "seriesDescription": "Descrição envolvente da série em 2-3 frases",
   "tags": ["tag1", "tag2", "tag3"],
+  "seriesBible": {
+    "title": "",
+    "genre": "${config.genre}",
+    "subgenre": "",
+    "primary_narrative_pattern": "",
+    "secondary_flavors": [],
+    "why_this_pattern_fits": "",
+    "audience_expectations_to_satisfy": [],
+    "intentional_pattern_deviations": [],
+    "target_audience": "${config.targetAudience}",
+    "format": "vertical short series",
+    "tone": "",
+    "logline": "",
+    "central_secret": "",
+    "main_conflict": "",
+    "season_finale_plan": "",
+    "season_2_hook": ""
+  },
+  "characterBible": [
+    {
+      "id": "",
+      "name": "",
+      "role": "",
+      "visual_lock": "",
+      "outfit_lock": "",
+      "personality": "",
+      "desire": "",
+      "fear": "",
+      "arc": "",
+      "voice_identity": {
+        "language": "pt-BR",
+        "accent": "neutral Brazilian Portuguese, not European Portuguese",
+        "vocal_age": "",
+        "pitch": "",
+        "timbre": "",
+        "default_pace": "",
+        "energy": "",
+        "emotional_range": "",
+        "signature_delivery": ""
+      },
+      "reference_assets_needed": []
+    }
+  ],
+  "locationBible": [
+    {
+      "id": "",
+      "name": "",
+      "visual_lock": "",
+      "layout_lock": "",
+      "lighting": "",
+      "story_function": "",
+      "recurring_props": [],
+      "reference_assets_needed": []
+    }
+  ],
+  "objectBible": [
+    {
+      "id": "",
+      "name": "",
+      "visual_lock": "",
+      "story_function": "",
+      "continuity_rules": "",
+      "reference_assets_needed": []
+    }
+  ],
+  "spatialMaps": [
+    {
+      "location_id": "",
+      "map_orientation": "",
+      "entrances_and_exits": [],
+      "major_landmarks": [],
+      "paths": [],
+      "camera_axis_rules": {},
+      "spatial_risks": []
+    }
+  ],
+  "audioBible": {
+    "music_identity": {},
+    "location_ambience": [],
+    "character_voices": [],
+    "mixing_rules": {}
+  },
+  "seasonArc": {
+    "season": 1,
+    "arc_summary": "",
+    "finale_plan": "",
+    "episode_count": ${config.episodeCount}
+  },
+  "episodeMap": [
+    {
+      "episode": 1,
+      "title": "",
+      "duration_seconds": ${config.averageDuration},
+      "hook": "",
+      "conflict": "",
+      "reveal": "",
+      "decision": "",
+      "cliffhanger": "",
+      "characters_present": [],
+      "locations": [],
+      "continuity_state_after": {}
+    }
+  ],
+  "episodeTreatments": [
+    {
+      "episode": 1,
+      "title": "",
+      "target_duration_seconds": ${config.averageDuration},
+      "genre_pattern_used": "",
+      "opening_situation": "",
+      "inciting_action": "",
+      "escalation": "",
+      "turning_point": "",
+      "payoff_or_reveal": "",
+      "cliffhanger": "",
+      "cause_effect_chain": [],
+      "dialogue_strategy": "",
+      "continuity_state_after": {}
+    }
+  ],
+  "sceneCards": [
+    {
+      "episode": 1,
+      "scene": 1,
+      "planned_duration_seconds": 15,
+      "story_function": "",
+      "location_id": "",
+      "transition_mode": "hard_cut",
+      "what_is_visible": "",
+      "blocking_and_staging": "",
+      "spatial_continuity": {},
+      "scene_rhythm": "",
+      "conversation_purpose": "",
+      "entry_state": "",
+      "exit_state": "",
+      "transition_to_next_scene": "",
+      "scene_casting": {},
+      "visual_references": [],
+      "dialogue": [],
+      "audio": {},
+      "cliffhanger_or_scene_exit": "",
+      "generation_segments": []
+    }
+  ],
+  "storyboardPlan": {
+    "episode": 1,
+    "beats": [],
+    "spatial_continuity_pass": []
+  },
+  "generationPlan": [
+    {
+      "episode": 1,
+      "scene": 1,
+      "segment": "1A",
+      "duration_seconds": 15,
+      "source_scene_moment": "",
+      "continuity_from_previous": {},
+      "spatial_continuity": {},
+      "bridge_to_next": {},
+      "segment_casting": {},
+      "timed_dialogue": [],
+      "references_to_send": [],
+      "dreamina_seedance_prompt_30_100_words": ""
+    }
+  ],
+  "seedanceNotes": {
+    "reference_budget": "",
+    "audio_strategy": "",
+    "continuity_strategy": "",
+    "negative_constraints": []
+  },
+  "storyPoints": [
+    {
+      "pointType": "EPISODE_MAP",
+      "title": "",
+      "body": {},
+      "episodeNumber": 1,
+      "sceneNumber": null,
+      "segment": null,
+      "orderIndex": 0
+    }
+  ],
+  "references": [
+    {
+      "category": "ENVIRONMENT",
+      "label": "",
+      "sourceUrl": null,
+      "prompt": "",
+      "metadata": {
+        "why_needed": "",
+        "episode": null,
+        "scene": null
+      }
+    },
+    {
+      "category": "OBJECT",
+      "label": "",
+      "sourceUrl": null,
+      "prompt": "",
+      "metadata": {
+        "why_needed": "",
+        "episode": null,
+        "scene": null
+      }
+    }
+  ],
   "episodes": [
     {
       "episodeNumber": 1,
@@ -359,23 +586,32 @@ export const waitForVideo = async (
 export const generateFullSeries = async (
   config: SeriesGenerationConfig,
   createdById: number,
-  onProgress?: (progress: number, message: string) => void
+  onProgress?: (progress: number, message: string) => void,
+  existingJobId?: number
 ): Promise<number> => {
   const updateProgress = (progress: number, message: string) => {
     console.log(`[AI-Generation] ${progress}% - ${message}`);
     onProgress?.(progress, message);
   };
 
-  // Create job record
-  const job = await prisma.aIGenerationJob.create({
-    data: {
-      type: 'FULL_SERIES',
-      status: 'PROCESSING',
-      inputData: JSON.stringify(config),
-      createdById,
-      progress: 0,
-    },
-  });
+  const job = existingJobId
+    ? await prisma.aIGenerationJob.update({
+        where: { id: existingJobId },
+        data: {
+          status: 'PROCESSING',
+          inputData: JSON.stringify(config),
+          progress: 0,
+        },
+      })
+    : await prisma.aIGenerationJob.create({
+        data: {
+          type: 'FULL_SERIES',
+          status: 'PROCESSING',
+          inputData: JSON.stringify(config),
+          createdById,
+          progress: 0,
+        },
+      });
 
   try {
     updateProgress(5, 'Generating series script...');
@@ -466,6 +702,47 @@ export const generateFullSeries = async (
         data: { progress: Math.round(epProgress) },
       });
     }
+
+    updateProgress(90, 'Saving Seedance production pipeline data...');
+
+    await seriesProductionService.saveSeriesProductionPlan(
+      series.id,
+      {
+        source: 'seedance-series-pipeline',
+        replaceExisting: true,
+        pipelineData: {
+          seriesBible: script.seriesBible || {
+            title: script.seriesTitle,
+            genre: config.genre,
+            target_audience: config.targetAudience,
+            format: 'vertical short series',
+            logline: script.seriesDescription,
+          },
+          characterBible: script.characterBible,
+          locationBible: script.locationBible,
+          objectBible: script.objectBible,
+          spatialMaps: script.spatialMaps,
+          audioBible: script.audioBible,
+          seasonArc: script.seasonArc,
+          episodeMap: script.episodeMap || script.episodes,
+          episodeTreatments: script.episodeTreatments,
+          sceneCards: script.sceneCards || script.episodes.reduce((items: any[], episode) => {
+            return items.concat(episode.scenes || []);
+          }, []),
+          storyboardPlan: script.storyboardPlan,
+          generationPlan: script.generationPlan,
+          seedanceNotes: script.seedanceNotes || {
+            coverPrompt,
+            referencePolicy: 'Upload real reference images to Cloudflare R2 when generated or attached.',
+            audioStrategy: 'Use Seedance audio as scratch unless final post-production audio is configured.',
+          },
+          storyPoints: script.storyPoints,
+          references: script.references || script.referenceAssets || [],
+          generatedScript: script,
+        },
+      },
+      createdById,
+    );
 
     updateProgress(95, 'Finalizing series...');
 

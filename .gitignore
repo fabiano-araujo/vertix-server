@@ -1,4 +1,8 @@
 node_modules
 build
+dist
 # Keep environment variables out of version control
 .env
+*.err.log
+*.out.log
+public/openrouter-video-runs/
