@@ -209,8 +209,8 @@ model AIGenerationJob {
   seriesId      Int?
   status        String    @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
   type          String    // SCRIPT, COVER, VIDEO, FULL_SERIES
-  inputData     String    @db.Text // JSON com parâmetros
-  outputData    String?   @db.Text // JSON com resultados
+  inputData     String    @db.LongText // JSON com parâmetros
+  outputData    String?   @db.LongText // JSON com resultados
   errorMessage  String?   @db.Text
   progress      Int       @default(0) // 0 a 100
   createdById   Int

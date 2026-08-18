@@ -42,22 +42,35 @@ const asEpisodeNumber = (value: unknown): number | null => {
   return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
 };
 
+const withoutEditorSnapshot = (project: JsonMap): JsonMap => {
+  const bible =
+    project.seriesBible && typeof project.seriesBible === 'object'
+      ? { ...(project.seriesBible as JsonMap) }
+      : {};
+  delete bible.editor_project;
+  delete bible.studio_chat;
+  delete bible.studio_ui;
+  return { ...project, seriesBible: bible };
+};
+
 const compactProjectForAction = (
   project: JsonMap,
   action: CodexWorkflowAction,
   episodeNumber?: number,
 ): JsonMap => {
+  const source = withoutEditorSnapshot(project);
   if (action === 'GENERATE_SERIES_OUTLINE' || action === 'REVISE_PROJECT') {
-    return project;
+    return source;
   }
   const wanted = asEpisodeNumber(episodeNumber);
-  const episodes = Array.isArray(project.episodes) ? project.episodes : [];
+  const episodes = Array.isArray(source.episodes) ? source.episodes : [];
   const episode = episodes.find(
     (item: any) => asEpisodeNumber(item?.number) === wanted,
   );
-  const bible = project.seriesBible && typeof project.seriesBible === 'object'
-    ? project.seriesBible
-    : {};
+  const bible =
+    source.seriesBible && typeof source.seriesBible === 'object'
+      ? (source.seriesBible as JsonMap)
+      : {};
   const episodeScripts = Array.isArray(bible.episode_scripts)
     ? bible.episode_scripts.filter(
         (item: any) => asEpisodeNumber(item?.episode) === wanted,
@@ -80,15 +93,15 @@ const compactProjectForAction = (
   const episodeMap = episode && typeof episode === 'object' ? episode as JsonMap : {};
 
   return {
-    id: project.id,
-    title: project.title,
-    description: project.description,
-    genre: project.genre,
-    formatFamily: project.formatFamily,
-    targetEpisodeCount: project.targetEpisodeCount,
+    id: source.id,
+    title: source.title,
+    description: source.description,
+    genre: source.genre,
+    formatFamily: source.formatFamily,
+    targetEpisodeCount: source.targetEpisodeCount,
     seriesBible: {
       config: bible.config,
-      title: bible.title || project.title,
+      title: bible.title || source.title,
       logline: bible.logline,
       protagonist: bible.protagonist,
       opposing_force: bible.opposing_force,
@@ -114,7 +127,7 @@ const compactProjectForAction = (
       cold_open: card.cold_open,
       emotional_beat: card.emotional_beat,
     },
-    references: project.references,
+    references: source.references,
   };
 };
 
@@ -668,7 +681,14 @@ export const startWorkflowJob = async (
     data: {
       type: `CODEX_${request.action}`,
       status: 'PENDING',
-      inputData: JSON.stringify(request),
+      inputData: JSON.stringify({
+        ...request,
+        project: compactProjectForAction(
+          request.project,
+          request.action,
+          request.episodeNumber,
+        ),
+      }),
       createdById: userId,
       progress: 0,
     },
