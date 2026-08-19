@@ -24,6 +24,7 @@ export type CreateDolaJobInput = {
   model?: string;
   creditProfile?: string;
   references?: DolaReferenceInput[];
+  profiles?: number[];
 };
 
 export type DolaJob = {
@@ -40,9 +41,15 @@ export type DolaJob = {
   updatedAt: string;
 };
 
+const SESSION_CANDIDATES = [
+  process.env.DOLA_SESSION_FILE,
+  'C:/Users/Fabiano/dola-launcher/dola-session.json',
+  path.resolve(process.cwd(), '../dola-session.json'),
+  path.resolve(process.cwd(), 'dola-session.json'),
+].filter(Boolean) as string[];
+
 const DEFAULT_SESSION_FILE =
-  process.env.DOLA_SESSION_FILE ||
-  'C:/Users/Fabiano/dola-launcher/dola-session.json';
+  SESSION_CANDIDATES.find((file) => fs.existsSync(file)) || SESSION_CANDIDATES[0];
 const DEFAULT_PROFILE_ROOT =
   process.env.DOLA_PROFILE_ROOT || 'C:/Users/Fabiano/playwright-profiles';
 const DEFAULT_PLAYWRIGHT_MODULE =
@@ -360,7 +367,14 @@ const executeJob = async (job: DolaJob, input: CreateDolaJobInput) => {
   }
 
   const inventory = listAvailableProfiles();
-  if (!inventory.available.length) {
+  const requested = (input.profiles || [])
+    .map((value) => Number(value))
+    .filter((value) => Number.isInteger(value) && value > 0);
+  const availableSet = new Set(inventory.available);
+  const selected = requested.length
+    ? requested.filter((profile) => availableSet.has(profile))
+    : inventory.available;
+  if (!selected.length) {
     throw new Error('Nenhum perfil Dola disponível hoje no dola-session.json.');
   }
 
@@ -371,7 +385,7 @@ const executeJob = async (job: DolaJob, input: CreateDolaJobInput) => {
   const promptHash = crypto.createHash('sha256').update(prompt.replace(/\r\n/g, '\n').replace(/\n$/, ''), 'utf8').digest('hex');
   const referenceFiles = await materializeReferences(input.references || [], workDir);
   const outputFile = path.join(workDir, 'output.mp4');
-  const candidates = inventory.available.slice(0, Math.max(1, MAX_PROFILE_ATTEMPTS));
+  const candidates = selected;
   const errors: string[] = [];
 
   touchJob(job, {

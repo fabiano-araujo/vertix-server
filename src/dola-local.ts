@@ -2,6 +2,7 @@ import fastify from 'fastify';
 import fs from 'fs';
 import path from 'path';
 import dolaRoutes from './routes/dola.routes';
+import { listAvailableProfiles } from './services/dola-generation.service';
 
 const fastifyCors = require('@fastify/cors');
 const fastifyStatic = require('@fastify/static');
@@ -37,7 +38,14 @@ const start = async () => {
     await app.listen({ port, host: '127.0.0.1' });
     console.log(`Gerador Dola local em http://127.0.0.1:${port}`);
     console.log('Perfil de crédito: Pre-Writes');
-    console.log(`Sessão: ${process.env.DOLA_SESSION_FILE || 'C:/Users/Fabiano/dola-launcher/dola-session.json'}`);
+    try {
+      const inventory = listAvailableProfiles();
+      console.log(`Sessão: ${inventory.sessionFile}`);
+      console.log(`Perfis Playwright livres hoje: ${inventory.availableCount} → ${inventory.available.join(', ') || 'nenhum'}`);
+    } catch (error: any) {
+      console.log(`Sessão: ${process.env.DOLA_SESSION_FILE || 'C:/Users/Fabiano/dola-launcher/dola-session.json'}`);
+      console.log(`Não foi possível ler os perfis: ${error?.message || error}`);
+    }
   } catch (error) {
     console.error('Não foi possível iniciar o gerador Dola local:', error);
     process.exit(1);

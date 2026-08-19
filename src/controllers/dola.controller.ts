@@ -36,6 +36,7 @@ export const createJob = async (request: FastifyRequest, reply: FastifyReply) =>
       model: body.model,
       creditProfile: body.creditProfile || 'Pre-Writes',
       references: Array.isArray(body.references) ? body.references : [],
+      profiles: Array.isArray(body.profiles) ? body.profiles : [],
     });
     reply.send({ success: true, data: job });
   } catch (error) {
