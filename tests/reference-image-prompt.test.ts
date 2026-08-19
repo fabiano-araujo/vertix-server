@@ -55,6 +55,7 @@ test('location prompt is a photoreal location-scout master with saved anchors', 
 
   assert.equal(result.visualReferenceMode, 'ultra_photoreal_location');
   assert.match(result.prompt, /believable real location-scout photograph/i);
+  assert.match(result.prompt, /WORLD STYLE CONTINUITY/i);
   assert.match(result.prompt, /landscape 16:9/i);
   assert.match(result.prompt, /sofá branco/);
   assert.match(result.prompt, /daylight from the left window/);
@@ -171,7 +172,7 @@ test('a short supplied brief is incorporated instead of replacing the contract',
 });
 
 test('an already canonical skill prompt is preserved byte for byte', () => {
-  const canonical = 'Create a believable real location-scout photograph for a verified set.';
+  const canonical = 'Create a believable real location-scout photograph for a verified set. WORLD STYLE CONTINUITY — lock THIS series world.';
   const result = compileReferenceImagePrompt({
     label: 'Set verificado',
     category: 'LOCATION_MASTER',
@@ -179,6 +180,70 @@ test('an already canonical skill prompt is preserved byte for byte', () => {
   });
 
   assert.equal(result.prompt, canonical);
+});
+
+test('legacy location prompts without world continuity are recompiled', () => {
+  const result = compileReferenceImagePrompt({
+    label: 'Padaria Flor do Morro',
+    category: 'LOCATION_MASTER',
+    description: 'Pequeno estabelecimento com paredes de tijolo e prateleiras de madeira.',
+    prompt: 'Create a believable real location-scout photograph for a verified bakery interior.',
+  });
+
+  assert.notEqual(result.prompt, 'Create a believable real location-scout photograph for a verified bakery interior.');
+  assert.match(result.prompt, /WORLD STYLE CONTINUITY/i);
+  assert.match(result.prompt, /Padaria Flor do Morro/);
+});
+
+test('a bakery inherits favela construction from sibling locations, not a generic rustic shop', () => {
+  const result = compileReferenceImagePrompt({
+    label: 'Padaria Flor do Morro',
+    category: 'LOCATION_MASTER',
+    description: 'Pequeno estabelecimento de Bianca, com paredes de tijolo à vista e prateleiras de madeira rústica.',
+    metadata: {
+      background: 'Comunidade no morro',
+      visualStyle: 'Cinema teatral realista',
+      siblingLocations: [
+        {
+          name: 'Cobertura Ventura',
+          description: 'Apartamento de luxo no topo do único prédio alto da favela, com vista para toda a comunidade.',
+        },
+        {
+          name: 'Beco Gourmet',
+          description: 'Ruela estreita entre barracos, fios elétricos e a kombi do restaurante clandestino.',
+        },
+      ],
+    },
+  });
+
+  assert.match(result.prompt, /WORLD STYLE CONTINUITY/i);
+  assert.match(result.prompt, /Brazilian hillside informal settlement/i);
+  assert.match(result.prompt, /Cobertura Ventura/);
+  assert.match(result.prompt, /do NOT copy their floorplans/i);
+  assert.match(result.prompt, /generic isolated stock set/i);
+  assert.doesNotMatch(result.prompt, /working hospital, keep clinical corridors/i);
+});
+
+test('a hospital series does not receive favela construction language', () => {
+  const result = compileReferenceImagePrompt({
+    label: 'Sala de espera',
+    category: 'LOCATION_MASTER',
+    description: 'Recepção do hospital com cadeiras plásticas e um mural de avisos.',
+    metadata: {
+      background: 'Hospital',
+      siblingLocations: [
+        {
+          name: 'UTI',
+          description: 'Ala hospitalar com monitores e luz fria institucional.',
+        },
+      ],
+    },
+  });
+
+  assert.match(result.prompt, /WORLD STYLE CONTINUITY/i);
+  assert.match(result.prompt, /working hospital/i);
+  assert.doesNotMatch(result.prompt, /Brazilian hillside informal settlement/i);
+  assert.doesNotMatch(result.prompt, /rooftop water tanks/i);
 });
 
 test('character prompts lock a specific face instead of the default AI beauty composite', () => {

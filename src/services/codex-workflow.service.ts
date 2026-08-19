@@ -318,12 +318,13 @@ result shape:
     "emotional_fantasy": "the feeling the viewer binge-pays to keep",
     "differentiating_mechanism": "one specific engine that is not a generic CEO/secret-baby copy",
     "characters": [{"reference_id":"character-id","name":"...","role":"...","appearance":"...","personality":["..."],"goal":"...","wound":"...","arc":"...","visual_contract":"..."}],
-    "environments": [{"reference_id":"location-id","name":"...","description":"...","permanent_elements":["..."],"lighting_contract":"...","continuity_rules":["..."]}],
+    "environments": [{"reference_id":"location-id","name":"...","description":"...","world_visual_lock":"shared world DNA copied across every location in this series","permanent_elements":["..."],"lighting_contract":"...","continuity_rules":["..."]}],
     "props": [{"reference_id":"prop-id","name":"...","description":"...","story_function":"...","continuity_rules":["..."]}]
   },
   "references": [{"id":"same reference_id","label":"...","category":"CHARACTER_MASTER or LOCATION_MASTER or PROP_MASTER","description":"canonical image prompt-ready description","canonical":true,"metadata":{}}]
 }
 Invent a distinctive series title. Include at least 4 characters, 3 environments and 3 props. Write the logline in the project language. Character names may come from any country and must match each character's declared origin.
+ENVIRONMENT WORLD CONTINUITY: All locations share one photographed world for THIS series — not a default city type. Read background, visual_style, logline and every environment together, then lock the architectural language, construction logic, materials, infrastructure, climate, wear and color response. Each place keeps its own function and floor plan, but a stranger must recognize they belong to the same production day in the same city. Interiors still show that world (window, street, matching masonry). A class contrast is allowed only when the story needs it, and then the surrounding world stays visible. Do not invent a generic isolated set that contradicts sibling locations. Copy the same world_visual_lock into every environment.
 `;
 
 const sheetsContract = `
@@ -333,13 +334,14 @@ result shape:
 {
   "seriesBiblePatch": {
     "characters": [{"reference_id":"...","name":"...","role":"...","appearance":"...","personality":["..."],"dramatic_function":"...","goal":"...","wound":"...","arc":"...","visual_contract":"..."}],
-    "environments": [{"reference_id":"...","name":"...","description":"...","permanent_elements":["..."],"lighting_contract":"...","continuity_rules":["..."]}],
+    "environments": [{"reference_id":"...","name":"...","description":"...","world_visual_lock":"shared world DNA copied across every location in this series","permanent_elements":["..."],"lighting_contract":"...","continuity_rules":["..."]}],
     "props": [{"reference_id":"...","name":"...","description":"...","story_function":"...","continuity_rules":["..."]}]
   },
   "references": [{"id":"same reference_id","label":"...","category":"CHARACTER_MASTER or LOCATION_MASTER or PROP_MASTER","description":"canonical image prompt-ready description","canonical":true,"metadata":{}}]
 }
 Reuse names, roles and reference_ids already in PROJECT_DATA_JSON. Expand them into complete visual and dramatic sheets. If SCOPE is characters, omit environments and props. If SCOPE is locations, omit characters and props. If SCOPE is props, omit characters and environments. For SCOPE all, include at least 4 characters, 3 environments and 3 props. If USER_INSTRUCTION contains REFERENCE_ID, rewrite only that one sheet: return only that one entry in the matching array and only that one reference. Do not invent replacements for the other sheets. Write in the project language.
 When expanding characters, rewrite appearance into a casting identity card that starts with country of origin and visible ancestry. Invent or keep names that match that country; do not default to Brazilian names. Apply CAST DESIGN: freeze-frame silhouette, romantic-pair contrast, protagonist-as-engine (want + job tag + one contrast, mid-decision face, no cliché stack), cover faces as magnetic people with their own want, one phone-readable hook per supporting character. The protagonist is camera-attractive but not a catalog clone. Supporting characters are beautiful only if the role needs it, but they must still be visually unmistakable. Never copy a real actor.
+When expanding environments, first extract THIS series' shared world from background, visual_style, logline and every existing environment. Do not default every series to the same city type. Write description so it starts with one sentence of shared world DNA, then the specific place. Fill world_visual_lock with the same DNA on every location. permanent_elements must include 2-4 world-shared materials or infrastructure plus this place's own landmarks. Interiors must keep the world visible through a window, doorway, street or matching construction. A luxury or poorer contrast is valid only if the story needs it, and the surrounding world remains readable. Never write a generic isolated set (stock rustic shop, Hollywood alley, catalog hospital) that would not sit next to the sibling locations.
 `;
 
 const architectureContract = (target: number) => `

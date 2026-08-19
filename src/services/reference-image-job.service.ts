@@ -90,6 +90,27 @@ const parseJsonObject = <T>(value?: string | null): T => {
 const cleanText = (value: unknown, maxLength: number): string =>
   String(value || '').trim().slice(0, maxLength);
 
+const isLocationCategory = (category: string): boolean => {
+  const value = category.toUpperCase();
+  return value.includes('LOCATION')
+    || value.includes('ENVIRONMENT')
+    || value.includes('WORLD');
+};
+
+const siblingLocationFacts = (
+  references: ReferenceImageJobRequestItem[],
+  currentId: string,
+): Array<{ name: string; description: string }> =>
+  references
+    .filter((item) => isLocationCategory(cleanText(item.category, 120))
+      && cleanText(item.id, 180) !== currentId)
+    .map((item) => ({
+      name: cleanText(item.label, 180),
+      description: cleanText(item.description, 800),
+    }))
+    .filter((item) => item.name || item.description)
+    .slice(0, 8);
+
 const normalizeReferences = (
   references: ReferenceImageJobRequestItem[] | undefined,
 ): StoredReference[] => {
@@ -111,8 +132,16 @@ const normalizeReferences = (
     if (seen.has(id)) throw new Error(`Referencia duplicada no job: ${id}`);
     seen.add(id);
     const metadata = reference.metadata && typeof reference.metadata === 'object'
-      ? reference.metadata
+      ? { ...reference.metadata }
       : {};
+    if (
+      isLocationCategory(category)
+      && metadata.siblingLocations == null
+      && metadata.sibling_locations == null
+    ) {
+      const siblings = siblingLocationFacts(references, id);
+      if (siblings.length > 0) metadata.siblingLocations = siblings;
+    }
     const compiledPrompt = compileReferenceImagePrompt({
       label,
       category,
@@ -336,6 +365,13 @@ export const getReferenceImageJobManifest = async (
   };
 };
 
+const itemDisplayName = (
+  item: Pick<StoredReference, 'label' | 'category'>,
+): string =>
+  String(item.category || '').toUpperCase() === 'APP_COVER'
+    ? 'a arte da capa da série'
+    : item.label;
+
 export const updateReferenceImageItemStatus = async (
   jobId: number,
   token: string,
@@ -365,10 +401,10 @@ export const updateReferenceImageItemStatus = async (
     delete item.error;
   }
   output.message = status === 'GENERATING'
-    ? `Gerando ${item.label}`
+    ? `Gerando ${itemDisplayName(item)}`
     : status === 'UPLOADING'
-      ? `Enviando ${item.label} para a Vertix API`
-      : `Falha ao gerar ${item.label}`;
+      ? `Enviando ${itemDisplayName(item)} para a Vertix API`
+      : `Falha ao gerar ${itemDisplayName(item)}`;
   const updatedJob = await saveOutput(jobId, output, 'PROCESSING');
   return { job: updatedJob, output: recount(output) };
 };
@@ -471,7 +507,7 @@ export const uploadReferenceImage = async (
   item.updatedAt = new Date().toISOString();
   delete item.error;
   const counted = recount(output);
-  counted.message = `${item.label} enviada; ${counted.completed} de ${counted.total} prontas`;
+  counted.message = `${itemDisplayName(item)} enviada; ${counted.completed} de ${counted.total} prontas`;
   const updatedJob = await saveOutput(jobId, counted, 'PROCESSING');
   return { job: updatedJob, output: recount(counted), reference };
 };

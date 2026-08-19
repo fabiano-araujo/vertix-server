@@ -94,8 +94,13 @@ const suppliedPromptLooksCanonical = (prompt: string): boolean => {
     || normalized.includes('left 70% - three full-body turnaround views')
     || normalized.includes('create one original fictional adult character identity sheet')
     || normalized.includes('create one horizontal 3:2 identity sheet')
-    || normalized.includes('create a believable real location-scout photograph')
-    || normalized.includes('believable real location-scout photograph for')
+    || (
+      (
+        normalized.includes('create a believable real location-scout photograph')
+        || normalized.includes('believable real location-scout photograph for')
+      )
+      && normalized.includes('world style continuity')
+    )
     || (
       normalized.includes('photorealistic canonical prop continuity')
       && normalized.includes('white seamless studio cyclorama')
@@ -113,6 +118,7 @@ const looksLikeCompiledPrompt = (prompt: string): boolean => {
     || normalized.includes('approved location facts')
     || normalized.includes('approved prop facts')
     || normalized.includes('location-scout photograph')
+    || normalized.includes('world style continuity')
     || normalized.includes('identity sheet')
   );
 };
@@ -145,6 +151,7 @@ const locationFacts = (input: ReferenceImagePromptInput): string => {
     ...selectedMetadataFacts(metadata, [
       ['description', 'visual_lock', 'visualLock'],
       ['layout_lock', 'layoutLock', 'spatial_map', 'spatialMap'],
+      ['world_visual_lock', 'worldVisualLock'],
       ['story_function', 'storyFunction'],
       ['continuity_rules', 'continuityRules'],
     ]),
@@ -1460,6 +1467,117 @@ face-perfecting retouch, random rim light, extreme bokeh, CGI/render look, extra
 people, logo or watermark.`;
 };
 
+const worldCorpus = (input: ReferenceImagePromptInput, facts: string): string => {
+  const metadata = input.metadata || {};
+  return uniqueFacts([
+    facts,
+    cleanText(input.label, 180),
+    readableValue(metadataValue(metadata, [
+      'background',
+      'world_setting',
+      'worldSetting',
+      'setting',
+    ]), 1_500),
+    readableValue(metadataValue(metadata, [
+      'visual_style',
+      'visualStyle',
+    ]), 1_000),
+    readableValue(metadataValue(metadata, [
+      'logline',
+      'description',
+    ]), 1_500),
+    readableValue(metadataValue(metadata, [
+      'world_visual_lock',
+      'worldVisualLock',
+    ]), 2_000),
+    readableValue(metadataValue(metadata, [
+      'sibling_locations',
+      'siblingLocations',
+      'environment_anchors',
+      'environmentAnchors',
+      'other_locations',
+      'otherLocations',
+    ]), 4_000),
+  ]).join(' ');
+};
+
+const worldStylePacks = [
+  {
+    id: 'brazilian_informal_settlement',
+    test: /\b(favela|comunidade|barracos?|beco gourmet|tijolo baiano|caixa[s]? d['’]?água|gatos? elétricos|informal hillside settlement)\b/i,
+    direction: 'When THIS series world is a Brazilian hillside informal settlement, keep that specific construction: densely stacked unfinished masonry, exposed red brick, rough concrete pillars and slabs, external stairs, corrugated sheets, rooftop water tanks, satellite dishes, tangled overhead electrical gatos, narrow alleys, faded painted facades and packed earth or irregular concrete. Do not drift into a generic wooden shantytown, a historic colonial town or a European rustic shop. Interiors inherit the same masonry, improvised finishes and neighborhood density. A luxury interior is still in this world: keep the community visible through glass or openings.',
+  },
+  {
+    id: 'hospital',
+    test: /\b(hospital|pronto[- ]socorro|enfermaria|\buti\b|consultório médico|ala hospitalar)\b/i,
+    direction: 'When THIS series world is a working hospital, keep clinical corridors, vinyl or linoleum, wall rails, ceiling grids, institutional lighting, equipment wear and the same campus of buildings. Every room still reads as that hospital, not a hotel suite or a generic clinic stock set.',
+  },
+  {
+    id: 'corporate',
+    test: /\b(escritório corporativo|sede da empresa|open[- ]plan|boardroom|arranha[- ]céu corporativo)\b/i,
+    direction: 'When THIS series world is a contemporary corporate workplace, keep the same glass, stone, metal, elevator banks, floor plates and skyline. Private offices and lobbies still belong to that same headquarters.',
+  },
+  {
+    id: 'luxury_residence',
+    test: /\b(mansão|casarão|cobertura de luxo|luxury mansion)\b/i,
+    direction: 'When THIS series world is a luxury private residence, keep the same architectural language, grounds, millwork and lighting across rooms. Do not jump to a different estate, era or city.',
+  },
+  {
+    id: 'campus',
+    test: /\b(campus universitário|universidade|faculdade|colégio interno)\b/i,
+    direction: 'When THIS series world is a campus, keep the same academic architecture, grounds, corridors and climate. Interiors still open onto that campus.',
+  },
+  {
+    id: 'small_town',
+    test: /\b(cidade pequena|interior do brasil|praça da matriz|small town square)\b/i,
+    direction: 'When THIS series world is a small town, keep the same main-square architecture, local commerce, climate and street width. Shops and homes still sit on that same town fabric.',
+  },
+] as const;
+
+const siblingLocationSummary = (metadata: Record<string, unknown>): string => {
+  const siblings = readableValue(metadataValue(metadata, [
+    'sibling_locations',
+    'siblingLocations',
+    'environment_anchors',
+    'environmentAnchors',
+    'other_locations',
+    'otherLocations',
+  ]), 3_000);
+  return siblings
+    || 'use the series setting and every other approved location as the style source';
+};
+
+const compileWorldStyleLock = (
+  input: ReferenceImagePromptInput,
+  facts: string,
+): string => {
+  const metadata = input.metadata || {};
+  const corpus = worldCorpus(input, facts);
+  const setting = readableValue(metadataValue(metadata, [
+    'background',
+    'world_setting',
+    'worldSetting',
+    'setting',
+  ]), 1_000);
+  const visualStyle = readableValue(metadataValue(metadata, [
+    'visual_style',
+    'visualStyle',
+  ]), 800);
+  const matched = worldStylePacks.filter((pack) => pack.test.test(corpus));
+  const packs = matched.some((pack) => pack.id === 'brazilian_informal_settlement')
+    ? matched.filter((pack) => pack.id !== 'luxury_residence')
+    : matched;
+  const specific = packs.map((pack) => pack.direction).join(' ');
+  const inferred = specific
+    || 'Infer the shared architectural language from the series setting and the sibling locations named below. Repeat those same materials, construction, climate, infrastructure and wear here so every place could be photographed on the same production day in the same city.';
+  return `WORLD STYLE CONTINUITY — lock THIS series' world, not a default city type.
+Series setting: ${setting || 'derive from the approved location facts and sibling places'}.
+Visual style: ${visualStyle || 'match the photographic treatment implied by the sibling locations'}.
+Other places in this series (inherit construction, materials, climate and wear; do NOT copy their floorplans, furniture or story props): ${siblingLocationSummary(metadata)}.
+${inferred}
+This location keeps its own function, layout and landmarks, but a stranger must recognize it belongs next to the other places in this series. If it is an interior, do not seal it as a generic isolated stock set: keep at least one readable connection to the same world — window view, doorway to the street, matching exterior materials, neighborhood light or infrastructure at the edges. A class contrast is allowed only when the approved facts require it, and then the surrounding world stays visible. Hard failure: drifting into a different city, country, era, social fabric or tourist postcard that the rest of the series does not share.`;
+};
+
 const compileLocationPrompt = (input: ReferenceImagePromptInput): string => {
   const metadata = input.metadata || {};
   const label = cleanText(input.label, 180);
@@ -1492,6 +1610,7 @@ const compileLocationPrompt = (input: ReferenceImagePromptInput): string => {
 
   return `Create one canonical landscape 16:9 believable real location-scout photograph for ${label}.
 APPROVED LOCATION FACTS — PRESERVE EXACTLY: ${facts}
+${compileWorldStyleLock(input, facts)}
 Show ${timeAndWeather}, viewed from ${cameraPosition} with a plausible 24-35mm
 lens and natural exposure. Physically motivated light follows this approved
 lighting contract: ${lighting}. Use believable bounce from the actual dominant
