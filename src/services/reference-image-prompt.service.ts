@@ -229,6 +229,168 @@ const coverTypographySystems = [
   },
 ] as const;
 
+const faceAttractivenessRegisters = [
+  {
+    id: 'attractive_distinctive',
+    direction: 'This person can be attractive, but the attractiveness must come from THIS specific bone structure, not from a smoothed generic beauty-filter face. Pretty or handsome in a particular, irregular way — never the default AI influencer composite.',
+  },
+  {
+    id: 'striking_irregular',
+    direction: 'Striking and memorable, not conventionally pretty. Magnetic because the features are irregular, slightly off-standard, and specific. Do not beautify, slim, or symmetrize the face into a model look.',
+  },
+  {
+    id: 'ordinary_real',
+    direction: 'An ordinary real person from a casting room, not a lead model. Healthy and camera-ready, but not especially pretty or handsome. Neighbour-next-door bone structure. Do not upgrade this face into glamour.',
+  },
+  {
+    id: 'lived_in',
+    direction: 'A lived-in face with life on the surface: pores, slight fatigue, natural lines appropriate to age, uneven tone. Interesting rather than pretty. Not a beauty campaign and not aged into caricature.',
+  },
+] as const;
+
+const faceGeometries = [
+  {
+    id: 'long-narrow-dorsal-bump',
+    direction: 'Long rectangular face, high forehead, slightly close-set deep-set eyes, long straight nose with a small dorsal bump, thin lips, softly undefined jaw and a long lower third.',
+  },
+  {
+    id: 'broad-square-wide-set',
+    direction: 'Broad square face, low hairline, wide-set rounder eyes, short wide nose with a rounded tip, full mouth, strong gonial angle and a short thick neck.',
+  },
+  {
+    id: 'heart-hooded-pointed-chin',
+    direction: 'Heart-shaped face, wide temples, pointed chin, large hooded eyes, small slightly upturned nose, high uneven brows and a receding chin.',
+  },
+  {
+    id: 'round-soft-off-center-nose',
+    direction: 'Round soft face, full cheeks, short midface, a slightly off-center nose with a soft bulb, sparse outer brows, a hint of gummy smile and a soft under-chin even at healthy weight.',
+  },
+  {
+    id: 'diamond-aquiline-downturned',
+    direction: 'Diamond face, high sharp cheekbones, narrow forehead, tapering jaw, downturned almond eyes, aquiline nose and a thin upper lip over a fuller lower lip.',
+  },
+  {
+    id: 'inverted-triangle-long-philtrum',
+    direction: 'Inverted-triangle face, broad forehead, narrow jaw, slightly prominent ears, long philtrum, flatter nasal bridge and heavy straight brows.',
+  },
+  {
+    id: 'oval-offset-asymmetry',
+    direction: 'Oval envelope, but not a stock oval: crooked nasal septum, one eyelid more hooded than the other, off-center cupid’s bow and a stronger left jaw than right.',
+  },
+  {
+    id: 'compact-heavy-brow-wide-alar',
+    direction: 'Compact face, short lower third, wide alar base, thick brows that nearly meet, smallish eyes, a hint of nasolabial fold and a strong chin button.',
+  },
+] as const;
+
+const faceLandmarks = [
+  {
+    id: 'mole-left-of-mouth',
+    direction: 'a small dark mole about 1 cm left of the mouth corner, present in every view',
+  },
+  {
+    id: 'faint-brow-scar',
+    direction: 'a faint pale linear scar breaking the right eyebrow, never omitted',
+  },
+  {
+    id: 'left-cheek-freckle-cluster',
+    direction: 'a tight cluster of freckles only on the left cheek, not a full-face sprinkle',
+  },
+  {
+    id: 'chipped-incisor',
+    direction: 'a slightly chipped upper-left incisor, visible when the mouth is even slightly open',
+  },
+  {
+    id: 'uneven-ear-height',
+    direction: 'the right ear sits visibly higher than the left, readable in front and profile',
+  },
+  {
+    id: 'old-nasal-bump',
+    direction: 'an old healed nasal-bridge bump, like a childhood break, stable in every angle',
+  },
+  {
+    id: 'inherited-under-eye',
+    direction: 'inherited dark under-eyes that makeup does not fully hide, especially the inner corners',
+  },
+  {
+    id: 'right-resting-dimple',
+    direction: 'a dimple only on the right cheek, visible even at rest',
+  },
+] as const;
+
+const hasCraniofacialLock = (facts: string): boolean => {
+  const text = facts.toLocaleLowerCase('pt-BR');
+  return (
+    /\b(face shape|formato do rosto|formato de (rosto|cora[cç][aã]o|diamante|quadrado)|oval face|rosto oval|rosto (oval|redondo|quadrado|alongado)|square jaw|maxilar|jawline|linha da mand[ií]bula|cheekbone|ma[cç]ãs? do rosto|philtrum|filtro nasal|hooded|monolid|aquiline|adunco|gonial|canthal|interpupillary|deep-set|olhos fundos|ponte nasal|nasal bridge|queixo recuado|receding chin|wide-set|close-set|olhos afastados|olhos juntos|brow ridge|lower third|ter[cç]o inferior|dorsal bump|septo|cupid'?s bow|arco do cupido)\b/i
+      .test(text)
+    || /\bnariz\b.{0,48}\b(largo|estreito|adunco|curvo|quebrado|achatado|respingado|reto|osso)\b/i
+      .test(text)
+    || /\b(queixo|mand[ií]bula|testa|sobrancelhas?)\b.{0,40}\b(largo|estreito|forte|fraco|recuado|quadrad|alto|baixo|assim[eé]tric)/i
+      .test(text)
+  );
+};
+
+const requestedAttractivenessRegister = (
+  facts: string,
+): (typeof faceAttractivenessRegisters)[number]['id'] | undefined => {
+  const text = facts.toLocaleLowerCase('pt-BR');
+  if (/\b(ordinary|average[- ]looking|pessoa comum|rosto comum|n[aã]o (t[aã]o )?bonit|not (that |very )?pretty|not a model|casting extra|vizinho|pessoa normal)\b/i.test(text)) {
+    return 'ordinary_real';
+  }
+  if (/\b(lived[- ]in|weathered|vivid[oa]|idade no rosto|linhas de express[aã]o|marca de vida)\b/i.test(text)) {
+    return 'lived_in';
+  }
+  if (/\b(striking|marcante|interessante|magnetic|not conventionally|n[aã]o convencionalmente)\b/i.test(text)) {
+    return 'striking_irregular';
+  }
+  if (/\b(pretty|beautiful|handsome|bonit[oa]|lind[oa]|atraente|glamour|modelo de passarela|fashion model)\b/i.test(text)) {
+    return 'attractive_distinctive';
+  }
+  return undefined;
+};
+
+const compileFaceIdentityLock = (
+  input: ReferenceImagePromptInput,
+): { block: string; metadata: Record<string, string> } => {
+  const facts = characterFacts(input);
+  const seed = stableHash(
+    `${cleanText(input.label, 180).toLocaleLowerCase('pt-BR')}|${facts.toLocaleLowerCase('pt-BR')}`,
+  );
+  const requestedRegister = requestedAttractivenessRegister(facts);
+  const attractivenessIndex = requestedRegister
+    ? Math.max(0, faceAttractivenessRegisters.findIndex((item) =>
+      item.id === requestedRegister))
+    : seed % faceAttractivenessRegisters.length;
+  const attractiveness = faceAttractivenessRegisters[attractivenessIndex];
+  const geometry = faceGeometries[
+    Math.floor(seed / faceAttractivenessRegisters.length) % faceGeometries.length
+  ];
+  const landmark = faceLandmarks[
+    Math.floor(seed / (faceAttractivenessRegisters.length * faceGeometries.length))
+      % faceLandmarks.length
+  ];
+  const preserveGeometry = hasCraniofacialLock(facts);
+  const geometryLine = preserveGeometry
+    ? 'Keep the craniofacial geometry already named in APPROVED CHARACTER FACTS. Do not replace it with a stock oval beautified face.'
+    : `Craniofacial geometry to preserve exactly: ${geometry.direction}`;
+  const landmarkLine = preserveGeometry
+    ? 'Keep any mole, scar, dental, brow or asymmetry landmark already named; do not invent a conflicting mark.'
+    : `Signature landmark, visible in every face view: ${landmark.direction}.`;
+
+  return {
+    block: `FACE IDENTITY LOCK — invent one specific person, never the default GPT Image 2 / Instagram / stock-model composite.
+ATTRACTIVENESS REGISTER — ${attractiveness.id}: ${attractiveness.direction}
+${geometryLine}
+${landmarkLine}
+ANTI-SAMEFACE: Do not keep a generic oval face and only change hair color, eye color or clothes. Bone structure, nose, jaw, eye spacing and landmark must make this character immediately distinguishable from other series characters of similar age and gender. Required: stable left-right asymmetry, natural pores at viewing distance, individual brows, realistic teeth, flyaway hair. Forbidden: beauty-filter skin, perfectly symmetrical features, oversized glossy eyes, tiny default nose, cloned influencer jaw, waxy pores-free complexion, fashion-campaign posing.`,
+    metadata: {
+      faceAttractivenessRegister: attractiveness.id,
+      faceGeometryVariant: preserveGeometry ? 'facts-owned' : geometry.id,
+      faceLandmarkVariant: preserveGeometry ? 'facts-owned' : landmark.id,
+    },
+  };
+};
+
 const coverPaletteSystems = [
   {
     id: 'obsidian-amber',
@@ -422,12 +584,15 @@ const compileHybridCharacterPrompt = (
 ): string => {
   const name = cleanText(input.label, 180);
   const facts = characterFacts(input) || 'Use only the approved identity and wardrobe facts supplied for this character.';
+  const identity = compileFaceIdentityLock(input);
   return `Create one clean horizontal 3:2 character identity sheet on an off-white
 background for the original fictional adult character ${name}. Put the exact name
 “${name}” once in large, correctly spelled, readable editorial type at the top,
 centered across the complete sheet.
 
 APPROVED CHARACTER FACTS — PRESERVE EXACTLY: ${facts}
+
+${identity.block}
 
 LEFT 70% — THREE FULL-BODY TURNAROUND VIEWS: show exactly three believable,
 unretouched, live-action color bodies at matching head-to-toe scale: (1)
@@ -502,6 +667,7 @@ const compileStandardCharacterPrompt = (
 ): string => {
   const name = cleanText(input.label, 180);
   const facts = characterFacts(input) || 'Use only the approved identity and wardrobe facts supplied for this character.';
+  const identity = compileFaceIdentityLock(input);
   const minor = isExplicitMinor(input);
   const subject = minor
     ? 'original fictional child character'
@@ -512,6 +678,7 @@ const compileStandardCharacterPrompt = (
   return `Create one horizontal 3:2 identity sheet for ${name}, an ${subject}, as believable,
 unretouched live-action casting photography on a neutral off-white background.
 APPROVED CHARACTER FACTS — PRESERVE EXACTLY: ${facts}${childSafety}
+${identity.block}
 Include full-body front, strict 90-degree side and direct back views plus face
 front and strict side profile, all unmistakably the same person. Natural exposure,
 plausible 50-85mm portrait perspective for face views, 35-50mm perspective for
@@ -635,14 +802,18 @@ export const compileReferenceImagePrompt = (
         ? 'hybrid_face_compat'
         : 'standard_ultra_photoreal'
       : requestedCharacterMode(input);
+    const compiledPrompt = canonicalPrompt
+      ? suppliedPrompt
+      : visualReferenceMode === 'hybrid_face_compat'
+        ? compileHybridCharacterPrompt(input)
+        : compileStandardCharacterPrompt(input);
     return {
-      prompt: canonicalPrompt
-        ? suppliedPrompt
-        : visualReferenceMode === 'hybrid_face_compat'
-          ? compileHybridCharacterPrompt(input)
-          : compileStandardCharacterPrompt(input),
+      prompt: compiledPrompt,
       promptContract: REFERENCE_IMAGE_PROMPT_CONTRACT,
       visualReferenceMode,
+      promptMetadata: canonicalPrompt
+        ? undefined
+        : compileFaceIdentityLock(input).metadata,
     };
   }
 

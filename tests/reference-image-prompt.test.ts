@@ -160,6 +160,71 @@ test('an already canonical skill prompt is preserved byte for byte', () => {
   assert.equal(result.prompt, canonical);
 });
 
+test('character prompts lock a specific face instead of the default AI beauty composite', () => {
+  const result = compileReferenceImagePrompt({
+    label: 'Lívia Menezes',
+    category: 'CHARACTER_MASTER',
+    description: 'Mulher brasileira de 28 anos, pele caramelo, cabelo cacheado, olhos verdes, terno bege.',
+  });
+
+  assert.match(result.prompt, /FACE IDENTITY LOCK/);
+  assert.match(result.prompt, /ANTI-SAMEFACE/);
+  assert.match(result.prompt, /Craniofacial geometry to preserve exactly/);
+  assert.ok(result.promptMetadata?.faceGeometryVariant);
+  assert.notEqual(result.promptMetadata?.faceGeometryVariant, 'facts-owned');
+});
+
+test('cast members receive deterministic but different craniofacial packages', () => {
+  const livia = compileReferenceImagePrompt({
+    label: 'Lívia Menezes',
+    category: 'CHARACTER_MASTER',
+    description: 'Mulher brasileira de 28 anos, terno bege.',
+  });
+  const diego = compileReferenceImagePrompt({
+    label: 'Diego Ventura',
+    category: 'CHARACTER_MASTER',
+    description: 'Homem brasileiro de 30 anos, camisa azul.',
+  });
+  const liviaAgain = compileReferenceImagePrompt({
+    label: 'Lívia Menezes',
+    category: 'CHARACTER_MASTER',
+    description: 'Mulher brasileira de 28 anos, terno bege.',
+  });
+
+  assert.equal(
+    livia.promptMetadata?.faceGeometryVariant,
+    liviaAgain.promptMetadata?.faceGeometryVariant,
+  );
+  assert.notEqual(
+    livia.promptMetadata?.faceGeometryVariant,
+    diego.promptMetadata?.faceGeometryVariant,
+  );
+});
+
+test('named craniofacial facts are preserved instead of a hashed geometry', () => {
+  const result = compileReferenceImagePrompt({
+    label: 'Rafaela Costa',
+    category: 'CHARACTER_MASTER',
+    description: 'Rosto em formato de coração, nariz pequeno e respingado, queixo recuado, olhos hooded afastados.',
+  });
+
+  assert.equal(result.promptMetadata?.faceGeometryVariant, 'facts-owned');
+  assert.match(result.prompt, /Keep the craniofacial geometry already named/);
+  assert.match(result.prompt, /rosto em formato de coração/i);
+});
+
+test('an ordinary-looking brief keeps the ordinary attractiveness register', () => {
+  const result = compileReferenceImagePrompt({
+    label: 'Marcos Tavares',
+    category: 'CHARACTER_MASTER',
+    description: 'Homem de 41 anos, pessoa comum, não tão bonito, rosto comum de escritório.',
+  });
+
+  assert.equal(result.promptMetadata?.faceAttractivenessRegister, 'ordinary_real');
+  assert.match(result.prompt, /ordinary_real/);
+  assert.match(result.prompt, /not especially pretty or handsome/);
+});
+
 test('a compiled standard character prompt remains standard when reused', () => {
   const first = compileReferenceImagePrompt({
     label: 'Lucas Mendes',

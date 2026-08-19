@@ -16,8 +16,7 @@ Story/project JSON is explicitly treated as untrusted data.
 
 ## Actions
 
-- `GENERATE_SERIES_OUTLINE`: season overview, episode outlines, characters,
-  environments, props, and reference descriptions. It does not create scripts.
+- `GENERATE_SERIES_OUTLINE`: series contract, season architecture (blocks, paywall, reserved reveals, episode spine), then episode outlines/cards and hook chain. It does not create scripts.
 - `GENERATE_STORY_SHEETS`: character, location and prop sheets from an existing
   outline. It does not invent a new title, contract or episodes.
 - `GENERATE_EPISODE_SCRIPT`: detailed scenes, shots, dialogue/action rows, and
