@@ -1,5 +1,5 @@
 export const REFERENCE_IMAGE_PROMPT_CONTRACT =
-  'seedance-series-pipeline/reference-images-v1';
+  'seedance-series-pipeline/reference-images-v2';
 
 export type ReferenceImagePromptInput = {
   label: string;
@@ -13,12 +13,14 @@ export type ReferenceVisualMode =
   | 'hybrid_face_compat'
   | 'standard_ultra_photoreal'
   | 'ultra_photoreal_location'
-  | 'ultra_photoreal_prop';
+  | 'ultra_photoreal_prop'
+  | 'premium_streaming_cover';
 
 export type CompiledReferenceImagePrompt = {
   prompt: string;
   promptContract: typeof REFERENCE_IMAGE_PROMPT_CONTRACT;
   visualReferenceMode: ReferenceVisualMode;
+  promptMetadata?: Record<string, string>;
 };
 
 const cleanText = (value: unknown, maxLength = 12_000): string =>
@@ -146,6 +148,230 @@ const propFacts = (input: ReferenceImagePromptInput): string => {
       ['condition', 'state'],
     ]),
   ]).join(' ');
+};
+
+const stableHash = (value: string): number => {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+};
+
+const coverCompositions = [
+  {
+    id: 'dual-tension-diagonal',
+    direction: 'Two principal characters in unequal scale, separated by a strong diagonal of negative space; their eyelines create unresolved dramatic tension.',
+  },
+  {
+    id: 'intimate-portrait-symbol',
+    direction: 'One emotionally charged close portrait dominates while one premise-defining physical symbol appears smaller but unmistakable in the lower depth plane.',
+  },
+  {
+    id: 'environment-led-silhouette',
+    direction: 'The recurring environment carries most of the composition; the protagonist is a smaller readable silhouette and the opposing force is implied through light or architecture.',
+  },
+  {
+    id: 'foreground-secret-background-threat',
+    direction: 'A sharp story-critical object or gesture anchors the foreground, a human face holds the middle plane, and the threat resolves in the distant background.',
+  },
+  {
+    id: 'asymmetric-ensemble-pyramid',
+    direction: 'Build an asymmetric three-level character hierarchy with one clear protagonist, one secondary relationship and one distant opposing presence; never a floating-head collage.',
+  },
+  {
+    id: 'reflection-without-split-screen',
+    direction: 'Use one physically plausible reflection in glass, rain, polished stone or a mirror to reveal the hidden conflict, while preserving one continuous photographed scene rather than split panels.',
+  },
+  {
+    id: 'low-angle-power-reversal',
+    direction: 'A restrained low-angle medium portrait suggests power, but a high-background clue visibly reverses who is actually in control.',
+  },
+  {
+    id: 'quiet-negative-space-hook',
+    direction: 'Use a single still figure pushed off-center with bold negative space, one specific trace of the central secret and an atmosphere of imminent consequence.',
+  },
+] as const;
+
+const coverTypographySystems = [
+  {
+    id: 'condensed-uppercase-tension',
+    direction: 'Tall condensed uppercase display lettering with disciplined tracking, a compact stacked lockup and one subtle custom cut tied to the premise.',
+  },
+  {
+    id: 'prestige-high-contrast-serif',
+    direction: 'A refined high-contrast prestige serif wordmark, mixed case, generous breathing room and one elegant ligature; dramatic rather than ornamental.',
+  },
+  {
+    id: 'editorial-neo-grotesk',
+    direction: 'A contemporary neo-grotesk wordmark in sentence case, firm weight contrast and an editorial line break selected for the title rhythm.',
+  },
+  {
+    id: 'hand-rendered-emotional-mark',
+    direction: 'A controlled hand-rendered title mark with human pressure variation, supported by a quiet clean sans accent; expressive but fully readable.',
+  },
+  {
+    id: 'engraved-legacy-serif',
+    direction: 'An engraved literary serif with restrained texture, compact capitals and subtle age or inheritance cues, without looking like a generic period template.',
+  },
+  {
+    id: 'geometric-modern-thriller',
+    direction: 'A geometric modern sans wordmark with one custom letterform, sharp scale contrast and precise alignment that suggests investigation or control.',
+  },
+  {
+    id: 'distressed-physical-type',
+    direction: 'Bold physical lettering with restrained ink, paper or weather wear derived from the story world; no generic grunge filter and no loss of legibility.',
+  },
+  {
+    id: 'cinematic-wide-serif-sans',
+    direction: 'A wide cinematic serif-and-sans hybrid lockup with a distinctive title break and measured horizontal expansion, designed for an intimate premium drama.',
+  },
+] as const;
+
+const coverPaletteSystems = [
+  {
+    id: 'obsidian-amber',
+    direction: 'deep neutral blacks, restrained amber practical light and natural skin color',
+  },
+  {
+    id: 'storm-blue-warm-skin',
+    direction: 'storm blue shadows, warm believable skin and one muted red-brown story accent',
+  },
+  {
+    id: 'ivory-burgundy',
+    direction: 'soft ivory highlights, dense burgundy accents and charcoal neutrals',
+  },
+  {
+    id: 'rain-green-gold',
+    direction: 'wet mineral greens, controlled old-gold practicals and neutral flesh tones',
+  },
+  {
+    id: 'steel-lilac',
+    direction: 'steel gray architecture, restrained lilac dusk and one warm human focal point',
+  },
+  {
+    id: 'tobacco-cyan',
+    direction: 'muted tobacco warmth against small physically motivated cyan reflections',
+  },
+  {
+    id: 'paper-black-crimson',
+    direction: 'near-black depth, tactile paper-white highlights and a sparse crimson narrative accent',
+  },
+  {
+    id: 'natural-night-neon',
+    direction: 'believable night exposure with one location-motivated neon family and protected natural skin',
+  },
+] as const;
+
+const compileAppCoverPrompt = (
+  input: ReferenceImagePromptInput,
+): CompiledReferenceImagePrompt => {
+  const metadata = input.metadata || {};
+  const title = readableValue(metadataValue(metadata, [
+    'series_title',
+    'seriesTitle',
+    'title',
+  ]), 180) || cleanText(input.label, 180);
+  const genre = readableValue(metadataValue(metadata, ['genre', 'subgenre']), 500);
+  const logline = cleanText(input.description, 4_000)
+    || readableValue(metadataValue(metadata, ['logline', 'description']), 4_000);
+  const protagonist = readableValue(metadataValue(metadata, ['protagonist']), 1_000);
+  const opposingForce = readableValue(metadataValue(metadata, [
+    'opposing_force',
+    'opposingForce',
+    'antagonist',
+  ]), 1_000);
+  const centralQuestion = readableValue(metadataValue(metadata, [
+    'central_question',
+    'centralQuestion',
+  ]), 1_500);
+  const stakes = readableValue(metadataValue(metadata, ['stakes']), 1_500);
+  const visualStyle = readableValue(metadataValue(metadata, [
+    'visual_style',
+    'visualStyle',
+  ]), 1_000);
+  const setting = readableValue(metadataValue(metadata, [
+    'background',
+    'setting',
+  ]), 1_000);
+  const trope = readableValue(metadataValue(metadata, ['trope']), 500);
+  const characterAnchors = readableValue(metadataValue(metadata, [
+    'character_anchors',
+    'characterAnchors',
+  ]), 4_000);
+  const environmentAnchors = readableValue(metadataValue(metadata, [
+    'environment_anchors',
+    'environmentAnchors',
+  ]), 3_000);
+  const storyFacts = uniqueFacts([
+    genre ? `Genre and tone: ${genre}.` : '',
+    logline ? `Premise: ${logline}` : '',
+    protagonist ? `Protagonist: ${protagonist}.` : '',
+    opposingForce ? `Opposing force: ${opposingForce}.` : '',
+    centralQuestion ? `Central dramatic question: ${centralQuestion}.` : '',
+    stakes ? `Stakes: ${stakes}.` : '',
+    visualStyle ? `Approved visual style: ${visualStyle}.` : '',
+    setting ? `Setting: ${setting}.` : '',
+    trope ? `Story engine: ${trope}.` : '',
+  ]).join(' ');
+  const seed = stableHash(`${title.toLocaleLowerCase('pt-BR')}|${genre.toLocaleLowerCase('pt-BR')}`);
+  const composition = coverCompositions[seed % coverCompositions.length];
+  const typography = coverTypographySystems[
+    Math.floor(seed / coverCompositions.length) % coverTypographySystems.length
+  ];
+  const palette = coverPaletteSystems[
+    Math.floor(seed / (coverCompositions.length * coverTypographySystems.length))
+      % coverPaletteSystems.length
+  ];
+
+  return {
+    prompt: `Create one original vertical 2:3 premium global-streaming series cover as polished,
+photorealistic live-action key art with Netflix-level finish and small-card
+readability, without copying any existing show poster, platform branding or trade
+dress.
+
+SERIES TITLE — render this exact title once and spell it correctly: “${title}”
+
+APPROVED STORY FACTS — preserve the premise and do not invent a different genre:
+${storyFacts || 'Use only the approved dramatic premise supplied for this series.'}
+
+CANONICAL VISUAL ANCHORS — preserve these identities, wardrobe cues and recurring
+world details instead of redesigning them: characters: ${characterAnchors || 'use the approved protagonist and opposing-force descriptions above'}; environments: ${environmentAnchors || 'use the approved story setting above'}.
+
+COMPOSITION VARIANT — ${composition.id}: ${composition.direction}
+TYPOGRAPHY VARIANT — ${typography.id}: ${typography.direction}
+PALETTE VARIANT — ${palette.id}: ${palette.direction}.
+
+Integrate the title as a designed wordmark inside the poster image, not as a UI
+overlay. Give it intentional hierarchy, kerning and line breaks appropriate to
+this exact title. Keep the complete wordmark and the main face or story action
+inside a center-safe portrait area so both remain immediately readable at 130x200
+and 68x92 catalog-card sizes. Typography must feel authored for this series; do
+not default to the same generic bold white sans-serif used on every cover.
+
+Photograph believable people and locations with plausible lens perspective,
+physically motivated light, natural skin texture and asymmetry, individual hair,
+real fabric and material response, restrained contrast, coherent shadows,
+realistic depth and subtle sensor grain. Build one decisive dramatic promise, not
+a synopsis collage. Preserve enough dark or quiet separation behind the title for
+clean readability while keeping the image visually rich at full size.
+
+Exactly one vertical cover, one continuous composition and the exact series title
+once. No subtitle, episode number, billing block, platform logo, Netflix N,
+unrelated logo, watermark, UI, device mockup, horizontal banner, duplicated face,
+floating-head montage, misspelled text or extra readable words.`,
+    promptContract: REFERENCE_IMAGE_PROMPT_CONTRACT,
+    visualReferenceMode: 'premium_streaming_cover',
+    promptMetadata: {
+      assetRole: 'APP_COVER',
+      targetField: 'Series.coverUrl',
+      aspectRatio: '2:3 portrait',
+      coverCompositionVariant: composition.id,
+      coverTypographyVariant: typography.id,
+      coverPaletteVariant: palette.id,
+    },
+  };
 };
 
 const explicitAge = (input: ReferenceImagePromptInput): number | undefined => {
@@ -393,9 +619,14 @@ export const compileReferenceImagePrompt = (
 ): CompiledReferenceImagePrompt => {
   const suppliedPrompt = cleanText(input.prompt, 20_000);
   const category = cleanText(input.category, 120).toUpperCase();
+  const isAppCover = category === 'APP_COVER';
   const isCharacter = category.includes('CHARACTER')
     || category.includes('OPPOSING_FORCE');
   const isProp = category.includes('PROP') || category.includes('OBJECT');
+
+  if (isAppCover) {
+    return compileAppCoverPrompt(input);
+  }
 
   if (isCharacter) {
     const canonicalPrompt = suppliedPromptLooksCanonical(suppliedPrompt);

@@ -364,26 +364,49 @@ export const ingestSeriesReference = async (
     payload.label || 'REFERENCE',
   );
 
-  const created = await prisma.seriesReferenceAsset.create({
-    data: {
-      seriesId,
-      productionPlanId: plan.id,
-      category: resolved.category,
-      label: String(resolved.label).slice(0, 180),
-      sourceUrl: resolved.sourceUrl || resolved.publicUrl,
-      storageKey: resolved.storageKey,
-      publicUrl: resolved.publicUrl,
-      contentType: resolved.contentType,
-      sizeBytes: resolved.sizeBytes,
-      prompt: jsonText(resolved.prompt ?? payload.prompt),
-      metadata: jsonText({
-        ...(typeof payload.metadata === 'object' && payload.metadata !== null
-          ? payload.metadata as Record<string, unknown>
-          : { metadata: payload.metadata }),
-        source: 'vertix-api-reference',
-      }),
-      createdById: userId,
-    },
+  const normalizedCategory = String(resolved.category).toUpperCase();
+  const catalogField = normalizedCategory === 'APP_COVER'
+    ? 'coverUrl'
+    : normalizedCategory === 'APP_THUMBNAIL'
+      ? 'thumbnailUrl'
+      : null;
+  const publicUrl = catalogField
+    ? withCacheVersion(
+      resolved.publicUrl,
+      new Date().toISOString().replace(/\D/g, '').slice(0, 14),
+    )
+    : resolved.publicUrl;
+
+  const created = await prisma.$transaction(async (tx) => {
+    const asset = await tx.seriesReferenceAsset.create({
+      data: {
+        seriesId,
+        productionPlanId: plan.id,
+        category: normalizedCategory,
+        label: String(resolved.label).slice(0, 180),
+        sourceUrl: resolved.sourceUrl || resolved.publicUrl,
+        storageKey: resolved.storageKey,
+        publicUrl,
+        contentType: resolved.contentType,
+        sizeBytes: resolved.sizeBytes,
+        prompt: jsonText(resolved.prompt ?? payload.prompt),
+        metadata: jsonText({
+          ...(typeof payload.metadata === 'object' && payload.metadata !== null
+            ? payload.metadata as Record<string, unknown>
+            : { metadata: payload.metadata }),
+          source: 'vertix-api-reference',
+          ...(catalogField ? { linkedAppField: `Series.${catalogField}` } : {}),
+        }),
+        createdById: userId,
+      },
+    });
+    if (catalogField) {
+      await tx.series.update({
+        where: { id: seriesId },
+        data: { [catalogField]: publicUrl },
+      });
+    }
+    return asset;
   });
 
   return {

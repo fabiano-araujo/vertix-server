@@ -129,6 +129,7 @@ const normalizeReferences = (
       canonical: reference.canonical !== false,
       metadata: {
         ...metadata,
+        ...compiledPrompt.promptMetadata,
         promptContract: compiledPrompt.promptContract,
         visualReferenceMode: compiledPrompt.visualReferenceMode,
       },

@@ -78,6 +78,64 @@ test('prop prompt preserves its function and physical material response', () => 
   assert.match(result.prompt, /real physical object rather than a CGI\s+product render/i);
 });
 
+test('app cover uses premium portrait key art and embeds the exact series title', () => {
+  const result = compileReferenceImagePrompt({
+    label: 'Sombra do Passado',
+    category: 'APP_COVER',
+    description: 'Uma mulher busca vingança ao descobrir que seu ex-amante escondeu a existência do filho deles.',
+    metadata: {
+      seriesTitle: 'Sombra do Passado',
+      genre: 'Drama de vingança',
+      protagonist: 'Isabela Costa',
+      opposingForce: 'Rafael Mendes',
+      targetField: 'Series.coverUrl',
+    },
+  });
+
+  assert.equal(result.visualReferenceMode, 'premium_streaming_cover');
+  assert.equal(result.promptMetadata?.assetRole, 'APP_COVER');
+  assert.equal(result.promptMetadata?.targetField, 'Series.coverUrl');
+  assert.match(result.prompt, /vertical 2:3 premium global-streaming series cover/i);
+  assert.match(result.prompt, /“Sombra do Passado”/);
+  assert.match(result.prompt, /130x200/);
+  assert.match(result.prompt, /Typography must feel authored for this series/i);
+  assert.match(result.prompt, /No subtitle, episode number/i);
+  assert.match(result.prompt, /No .*Netflix N/i);
+  assert.doesNotMatch(result.prompt, /location-scout photograph/i);
+});
+
+test('cover design is deterministic per series and varies across the catalog', () => {
+  const titles = [
+    'Sombra do Passado',
+    'Laços Invisíveis',
+    'Cicatrizes do Passado',
+    'Fragmentos do Passado',
+    'Máscara de Retribuição',
+    'O Contrato da Chuva',
+  ];
+  const compiled = titles.map((title) => compileReferenceImagePrompt({
+    label: title,
+    category: 'APP_COVER',
+    description: `Premissa dramática original de ${title}.`,
+    metadata: { seriesTitle: title, genre: 'Drama de vingança' },
+  }));
+  const repeated = compileReferenceImagePrompt({
+    label: titles[0],
+    category: 'APP_COVER',
+    description: `Premissa dramática original de ${titles[0]}.`,
+    metadata: { seriesTitle: titles[0], genre: 'Drama de vingança' },
+  });
+
+  assert.equal(repeated.prompt, compiled[0].prompt);
+  assert.deepEqual(repeated.promptMetadata, compiled[0].promptMetadata);
+  assert.ok(new Set(compiled.map((item) =>
+    item.promptMetadata?.coverCompositionVariant)).size > 1);
+  assert.ok(new Set(compiled.map((item) =>
+    item.promptMetadata?.coverTypographyVariant)).size > 1);
+  assert.ok(new Set(compiled.map((item) =>
+    item.promptMetadata?.coverPaletteVariant)).size > 1);
+});
+
 test('a short supplied brief is incorporated instead of replacing the contract', () => {
   const shortBrief = 'Mulher com cabelo preto curto e jaqueta vermelha.';
   const result = compileReferenceImagePrompt({
