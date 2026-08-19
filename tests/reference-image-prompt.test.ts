@@ -215,7 +215,7 @@ test('named craniofacial facts are preserved instead of a hashed geometry', () =
   assert.match(result.prompt, /rosto em formato de coração/i);
 });
 
-test('a protagonist defaults to camera-beauty identity without damage marks', () => {
+test('a protagonist defaults to galã camera-beauty with a varied look package', () => {
   const result = compileReferenceImagePrompt({
     label: 'Lívia Menezes',
     category: 'CHARACTER_MASTER',
@@ -225,11 +225,90 @@ test('a protagonist defaults to camera-beauty identity without damage marks', ()
 
   assert.equal(result.promptMetadata?.faceAttractivenessRegister, 'lead_camera_beauty');
   assert.equal(result.promptMetadata?.faceCastBand, 'lead');
-  assert.match(result.prompt, /clearly attractive series lead/);
-  assert.match(result.prompt, /tiny cosmetic landmark/);
+  assert.match(result.prompt, /GALÃ/);
+  assert.match(result.prompt, /LEAD LOOK PACKAGE/);
+  assert.ok(result.promptMetadata?.leadHairColorVariant);
+  assert.ok(result.promptMetadata?.leadHairTextureVariant);
+  assert.ok(result.promptMetadata?.leadBodyVariant);
   assert.doesNotMatch(result.prompt, /chipped upper-left incisor/);
   assert.doesNotMatch(result.prompt, /scar breaking the right eyebrow/);
-  assert.doesNotMatch(result.prompt, /childhood break/);
+});
+
+test('two leads receive different hair or body packages', () => {
+  const livia = compileReferenceImagePrompt({
+    label: 'Lívia Menezes',
+    category: 'CHARACTER_MASTER',
+    description: 'Mulher brasileira de 28 anos, terno bege.',
+    metadata: { role: 'Protagonista' },
+  });
+  const nina = compileReferenceImagePrompt({
+    label: 'Nina Rocha',
+    category: 'CHARACTER_MASTER',
+    description: 'Mulher brasileira de 27 anos, vestido vermelho.',
+    metadata: { role: 'Protagonista' },
+  });
+  const lookKey = (item: ReturnType<typeof compileReferenceImagePrompt>) =>
+    `${item.promptMetadata?.leadHairColorVariant}|${item.promptMetadata?.leadHairTextureVariant}|${item.promptMetadata?.leadBodyVariant}|${item.promptMetadata?.faceGeometryVariant}`;
+  assert.notEqual(lookKey(livia), lookKey(nina));
+});
+
+test('a protagonist without a country receives an explicit origin lock', () => {
+  const result = compileReferenceImagePrompt({
+    label: 'Sora Kim',
+    category: 'CHARACTER_MASTER',
+    description: 'Mulher de 28 anos, terno bege.',
+    metadata: { role: 'Protagonista' },
+  });
+
+  assert.match(result.prompt, /ORIGIN LOCK/);
+  assert.ok(result.promptMetadata?.originCountry);
+  assert.notEqual(result.promptMetadata?.originCountry, 'facts-owned');
+});
+
+test('two characters receive different origin packages', () => {
+  const a = compileReferenceImagePrompt({
+    label: 'Sora Kim',
+    category: 'CHARACTER_MASTER',
+    description: 'Mulher de 28 anos, terno bege.',
+    metadata: { role: 'Protagonista' },
+  });
+  const b = compileReferenceImagePrompt({
+    label: 'Amara Okoye',
+    category: 'CHARACTER_MASTER',
+    description: 'Mulher de 27 anos, vestido vermelho.',
+    metadata: { role: 'Protagonista' },
+  });
+
+  assert.notEqual(
+    a.promptMetadata?.originVariant,
+    b.promptMetadata?.originVariant,
+  );
+});
+
+test('an already named Brazilian origin is preserved', () => {
+  const result = compileReferenceImagePrompt({
+    label: 'Lívia Menezes',
+    category: 'CHARACTER_MASTER',
+    description: 'Mulher brasileira de 28 anos, terno bege.',
+    metadata: { role: 'Protagonista' },
+  });
+
+  assert.equal(result.promptMetadata?.originVariant, 'facts-owned');
+  assert.match(result.prompt, /keep the country and visible ancestry already named/i);
+});
+
+test('named ruiva curls are preserved instead of a hashed hair package', () => {
+  const result = compileReferenceImagePrompt({
+    label: 'Helena Vale',
+    category: 'CHARACTER_MASTER',
+    description: 'Protagonista ruiva de cabelo cacheado, corpo fitness, terno bege.',
+    metadata: { role: 'Protagonista' },
+  });
+
+  assert.equal(result.promptMetadata?.leadHairColorVariant, 'facts-owned');
+  assert.equal(result.promptMetadata?.leadHairTextureVariant, 'facts-owned');
+  assert.equal(result.promptMetadata?.leadBodyVariant, 'facts-owned');
+  assert.match(result.prompt, /keep the hair color already named/i);
 });
 
 test('an opposing force also uses lead camera beauty', () => {
@@ -262,6 +341,19 @@ test('two leads still receive different craniofacial packages', () => {
     livia.promptMetadata?.faceGeometryVariant,
     diego.promptMetadata?.faceGeometryVariant,
   );
+});
+
+test('supporting cast follows the story instead of a random ordinary face', () => {
+  const result = compileReferenceImagePrompt({
+    label: 'Rafaela Costa',
+    category: 'CHARACTER_MASTER',
+    description: 'Mulher de 27 anos, jaqueta preta.',
+    metadata: { role: 'Confidente' },
+  });
+
+  assert.equal(result.promptMetadata?.faceAttractivenessRegister, 'story_as_written');
+  assert.equal(result.promptMetadata?.faceCastBand, 'supporting');
+  assert.match(result.prompt, /story_as_written/);
 });
 
 test('an ordinary-looking brief keeps the ordinary attractiveness register', () => {

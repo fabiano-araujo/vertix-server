@@ -111,6 +111,7 @@ const characterFacts = (input: ReferenceImagePromptInput): string => {
       ['appearance', 'visual_lock', 'visualLock'],
       ['visual_contract', 'visualContract'],
       ['outfit_lock', 'outfitLock', 'wardrobe'],
+      ['origin', 'country', 'nationality', 'ancestry', 'ethnicity', 'pais', 'origem'],
       ['age', 'age_range', 'ageRange'],
       ['role'],
     ]),
@@ -232,23 +233,27 @@ const coverTypographySystems = [
 const faceAttractivenessRegisters = [
   {
     id: 'lead_camera_beauty',
-    direction: 'A clearly attractive series lead on a phone screen: camera-beautiful, healthy and magnetic. Attractiveness comes from harmonious but SPECIFIC bone structure — the kind of face a casting director would pick for a protagonist — not from a generic AI/Instagram composite and not from damage. Keep skin even and camera-ready, with only restrained pores. Do not add fatigue, scars, crooked teeth, a broken nose, receding chin, gummy smile or weathered aging. Pretty or handsome in a distinctive way, like a recognizable lead actor, never a cloned beauty filter.',
+    direction: 'A vertical-drama GALÃ / GATA: extremely attractive on a 9:16 phone screen, the kind of face and body a DramaBox/ReelShort lead is cast for. High-camera beauty, healthy glow, magnetic presence. Attractiveness comes from THIS specific bone structure, not from a cloned runway/Instagram model. Still very pretty or handsome — just a different beautiful person from every other series. Skin even and camera-ready, restrained pores, no fatigue, no scars, no crooked teeth, no broken nose, no receding chin. Think leading actor, not catalog extra and not a beauty-filter twin.',
   },
   {
     id: 'attractive_distinctive',
-    direction: 'This person can be attractive, but the attractiveness must come from THIS specific bone structure, not from a smoothed generic beauty-filter face. Pretty or handsome in a particular way — never the default AI influencer composite.',
+    direction: 'This person is clearly good-looking because the story needs it, with THIS specific bone structure rather than a smoothed generic beauty-filter face.',
   },
   {
     id: 'striking_irregular',
-    direction: 'Striking and memorable, not conventionally pretty. Magnetic because the features are irregular, slightly off-standard, and specific. Do not beautify, slim, or symmetrize the face into a model look.',
+    direction: 'Striking and memorable. Magnetic because the features are irregular and specific. Do not default this supporting role into a lead-model look unless the approved facts already say they are a galã.',
   },
   {
     id: 'ordinary_real',
-    direction: 'An ordinary real person from a casting room, not a lead model. Healthy and camera-ready, but not especially pretty or handsome. Neighbour-next-door bone structure. Do not upgrade this face into glamour.',
+    direction: 'An ordinary real person from a casting room. Healthy and camera-ready, but not especially pretty or handsome. Only use this when the approved facts ask for a common, non-lead face.',
   },
   {
     id: 'lived_in',
-    direction: 'A lived-in face with life on the surface: pores, slight fatigue, natural lines appropriate to age, uneven tone. Interesting rather than pretty. Not a beauty campaign and not aged into caricature.',
+    direction: 'A lived-in face with life on the surface: pores, slight fatigue, natural lines appropriate to age. Interesting rather than pretty. Use only when the approved facts ask for it.',
+  },
+  {
+    id: 'story_as_written',
+    direction: 'Cast this supporting character exactly as the approved facts describe. They may be beautiful or ordinary depending on the series. Do not upgrade them into a protagonist-galã and do not downgrade them into an unattractive extra.',
   },
 ] as const;
 
@@ -282,6 +287,193 @@ const leadFaceGeometries = [
     direction: 'Inverted-triangle silhouette with a broader forehead, large slightly upturned eyes, delicate tapered jaw, small straight nose and a short philtrum. Youthful lead beauty with a unique eye-to-jaw ratio.',
   },
 ] as const;
+
+const leadHairColors = [
+  {
+    id: 'copper-red',
+    direction: 'natural copper-red / ruiva hair with visible root variation, never plastic dyed-red',
+  },
+  {
+    id: 'honey-blonde',
+    direction: 'honey or dark-blonde hair, never platinum Instagram blonde',
+  },
+  {
+    id: 'warm-brunette',
+    direction: 'warm chestnut-brunette / morena hair with natural depth',
+  },
+  {
+    id: 'deep-black',
+    direction: 'deep black hair with a natural sheen, not blue-black wig shine',
+  },
+  {
+    id: 'caramel-morena',
+    direction: 'caramel-brown morena hair with a few sunlit strands',
+  },
+  {
+    id: 'ash-brown',
+    direction: 'cool ash-brown hair, distinct from warm brunette and from black',
+  },
+] as const;
+
+const leadHairTextures = [
+  {
+    id: 'long-straight',
+    direction: 'long straight hair with a clean fall and a few flyaways',
+  },
+  {
+    id: 'shoulder-wavy',
+    direction: 'shoulder-length wavy hair with an irregular, person-specific wave',
+  },
+  {
+    id: 'loose-curls',
+    direction: 'loose defined curls, not a generic curl filter or afro default',
+  },
+  {
+    id: 'short-textured',
+    direction: 'short textured cut that still reads glamorous on camera',
+  },
+  {
+    id: 'long-waves',
+    direction: 'long soft waves with weight at the ends',
+  },
+  {
+    id: 'crop-or-pixie',
+    direction: 'a confident short crop or pixie, attractive and specific',
+  },
+] as const;
+
+const leadBodies = [
+  {
+    id: 'lean-fitness',
+    direction: 'lean fitness body, visible healthy tone without bodybuilder bulk',
+  },
+  {
+    id: 'athletic-shoulders',
+    direction: 'athletic shoulders, defined waist, camera-fit leading-actor body',
+  },
+  {
+    id: 'runner-lean',
+    direction: 'runner-lean frame with long lines, healthy rather than starved',
+  },
+  {
+    id: 'soft-fit',
+    direction: 'soft-fit galã body: attractive, healthy, not a gym advertisement',
+  },
+] as const;
+
+const originPackages = [
+  {
+    id: 'south-korea',
+    country: 'South Korea',
+    direction: 'South Korean adult: light-to-medium warm East Asian skin, dark brown-black hair, monolid or soft inner crease, modest nasal bridge, oval-to-heart face. First and family names must be Korean.',
+  },
+  {
+    id: 'japan',
+    country: 'Japan',
+    direction: 'Japanese adult: fair-to-light olive East Asian skin, black or dark brown hair, straight-to-soft-wave texture, narrower midface, refined jaw. Names must be Japanese.',
+  },
+  {
+    id: 'china',
+    country: 'China',
+    direction: 'Chinese adult: light-to-medium East Asian skin, black hair, defined brow, broader cheek plane, dark brown eyes. Names must be Chinese.',
+  },
+  {
+    id: 'philippines',
+    country: 'Philippines',
+    direction: 'Filipino adult: medium warm brown skin, dark brown eyes, black hair that can be straight or softly waved, fuller midface. Names must be Filipino/Spanish-Filipino.',
+  },
+  {
+    id: 'mexico',
+    country: 'Mexico',
+    direction: 'Mexican adult: medium-to-deep warm brown skin, dark brown eyes, black or dark brown hair, strong brows. Names must be Mexican Spanish.',
+  },
+  {
+    id: 'colombia',
+    country: 'Colombia',
+    direction: 'Colombian adult: warm olive-to-brown skin, dark eyes, dark hair, defined brows. Names must be Colombian Spanish.',
+  },
+  {
+    id: 'argentina',
+    country: 'Argentina',
+    direction: 'Argentine adult: light olive or fair Southern-European skin, brown or hazel eyes, dark or chestnut hair. Names must be Argentine Spanish or Italian-Argentine.',
+  },
+  {
+    id: 'nigeria',
+    country: 'Nigeria',
+    direction: 'Nigerian adult: deep rich brown skin, dark brown eyes, black hair with tight coils or a defined short cut, fuller lips, strong cheekbones. Names must be Nigerian (Yoruba, Igbo or Hausa).',
+  },
+  {
+    id: 'ethiopia',
+    country: 'Ethiopia',
+    direction: 'Ethiopian adult: warm deep brown to reddish-brown skin, dark eyes, black hair with tight texture, longer oval face. Names must be Ethiopian.',
+  },
+  {
+    id: 'italy',
+    country: 'Italy',
+    direction: 'Italian adult: olive to light-tan Mediterranean skin, dark brown eyes, dark or chestnut hair, defined brows. Names must be Italian.',
+  },
+  {
+    id: 'france',
+    country: 'France',
+    direction: 'French adult: fair-to-light olive skin, brown or hazel eyes, brown hair that may be straight or wavy. Names must be French.',
+  },
+  {
+    id: 'spain',
+    country: 'Spain',
+    direction: 'Spanish adult: olive-to-tan skin, dark brown eyes, dark hair, strong brows. Names must be Spanish.',
+  },
+  {
+    id: 'portugal',
+    country: 'Portugal',
+    direction: 'Portuguese adult: light olive to tan skin, brown eyes, dark brown hair. Names must be Portuguese — not Brazilian copies of Silva/Costa.',
+  },
+  {
+    id: 'turkey',
+    country: 'Turkey',
+    direction: 'Turkish adult: olive-to-light-tan West Asian skin, dark brown eyes, dark hair, defined brows, slightly aquiline nose allowed if still attractive. Names must be Turkish.',
+  },
+  {
+    id: 'lebanon',
+    country: 'Lebanon',
+    direction: 'Lebanese adult: olive Mediterranean-West-Asian skin, dark eyes, dark hair, high brows. Names must be Lebanese/Arabic.',
+  },
+  {
+    id: 'india',
+    country: 'India',
+    direction: 'Indian adult: medium-to-deep warm brown skin, dark brown eyes, black hair (straight, wavy or a defined short cut). Names must be Indian.',
+  },
+  {
+    id: 'sweden',
+    country: 'Sweden',
+    direction: 'Swedish adult: fair Northern-European skin, blue or gray-green eyes, blonde-to-ash-brown hair. Names must be Swedish.',
+  },
+  {
+    id: 'usa',
+    country: 'United States',
+    direction: 'Black American adult: medium-to-deep brown skin, dark brown eyes, black hair in coils, waves or a short textured cut. Names must be African-American given/family names, not Brazilian.',
+  },
+  {
+    id: 'brazil',
+    country: 'Brazil',
+    direction: 'Brazilian adult mixed ancestry: caramel-to-olive skin, dark or green-hazel eyes, brown or black hair. Use Brazil only as one option among many, never as the silent default.',
+  },
+] as const;
+
+const hasNamedOrigin = (facts: string): boolean =>
+  /\b(brasileir[oa]|brazilian|corean[oa]|korean|japones[oa]|japanese|chines[oa]|chinese|filipin[oa]|mexican[oa]|mexican|colombian[oa]|argentin[oa]|nigerian[oa]|et[ií]ope|ethiopian|italian[oa]|italian|frances[oa]|french|espanhol[oa]|spanish|portugu[eê]s[oa]|turkish|turc[oa]|liban[eê]s[oa]|lebanese|indian[oa]|indian|suec[oa]|swedish|american[oa]|estadunidense|origem|nascid[oa] em|from [a-z]{3,}|país|pais de origem)\b/i
+    .test(facts);
+
+const hasNamedHairColor = (facts: string): boolean =>
+  /\b(ruiv[oa]|loir[oa]|blond|redhead|brunette|moren[oa]|castanh[oa]|cabelo (preto|preta|castanho|loiro|ruivo|vermelho)|black hair|platinad|honey-blonde|copper)\b/i
+    .test(facts);
+
+const hasNamedHairTexture = (facts: string): boolean =>
+  /\b(liso|ondulad[oa]|cachead[oa]|crespo|pixie|curto|longo|straight hair|wavy|curly|buzzed|raspado)\b/i
+    .test(facts);
+
+const hasNamedBody = (facts: string): boolean =>
+  /\b(fitness|atl[eé]tic|sarad[oa]|magr[oa]|plus[- ]size|corpo (fit|definido|esbelto)|broad[- ]shoulder|runner)\b/i
+    .test(facts);
 
 const faceGeometries = [
   {
@@ -405,6 +597,9 @@ const requestedAttractivenessRegister = (
   if (/\b(striking|marcante|interessante|magnetic|not conventionally|n[aã]o convencionalmente)\b/i.test(text)) {
     return 'striking_irregular';
   }
+  if (/\b(gal[aã]|gata|leading[- ]?(wo)?man|love interest|interesse rom[aâ]ntico)\b/i.test(text)) {
+    return 'lead_camera_beauty';
+  }
   if (/\b(pretty|beautiful|handsome|bonit[oa]|lind[oa]|atraente|glamour|modelo de passarela|fashion model)\b/i.test(text)) {
     return 'attractive_distinctive';
   }
@@ -438,14 +633,15 @@ const compileFaceIdentityLock = (
   const useLeadBeauty = lead
     && requestedRegister !== 'ordinary_real'
     && requestedRegister !== 'lived_in';
-  const attractiveness = requestedRegister && !useLeadBeauty
-    ? faceAttractivenessRegisters.find((item) => item.id === requestedRegister)
-      || faceAttractivenessRegisters[0]
-    : useLeadBeauty
-      ? faceAttractivenessRegisters[0]
-      : supportingAttractivenessRegisters[
-        seed % supportingAttractivenessRegisters.length
-      ];
+  const storyAsWritten = faceAttractivenessRegisters.find(
+    (item) => item.id === 'story_as_written',
+  ) || faceAttractivenessRegisters[faceAttractivenessRegisters.length - 1];
+  const attractiveness = useLeadBeauty
+    ? faceAttractivenessRegisters[0]
+    : requestedRegister
+      ? faceAttractivenessRegisters.find((item) => item.id === requestedRegister)
+        || storyAsWritten
+      : storyAsWritten;
   const geometryPool = useLeadBeauty ? leadFaceGeometries : faceGeometries;
   const landmarkPool = useLeadBeauty ? leadFaceLandmarks : faceLandmarks;
   const geometry = geometryPool[
@@ -455,6 +651,21 @@ const compileFaceIdentityLock = (
     Math.floor(seed / (supportingAttractivenessRegisters.length * geometryPool.length))
       % landmarkPool.length
   ];
+  const hairColor = leadHairColors[seed % leadHairColors.length];
+  const hairTexture = leadHairTextures[
+    Math.floor(seed / leadHairColors.length) % leadHairTextures.length
+  ];
+  const body = leadBodies[
+    Math.floor(seed / (leadHairColors.length * leadHairTextures.length))
+      % leadBodies.length
+  ];
+  const origin = originPackages[
+    Math.floor(seed / 13) % originPackages.length
+  ];
+  const preserveOrigin = hasNamedOrigin(facts);
+  const originLine = preserveOrigin
+    ? 'ORIGIN LOCK: keep the country and visible ancestry already named in APPROVED CHARACTER FACTS. The person must look like they come from that country.'
+    : `ORIGIN LOCK — country: ${origin.country}. Visible ancestry to preserve: ${origin.direction} Hair color from any look package must stay plausible for this origin.`;
   const preserveGeometry = hasCraniofacialLock(facts);
   const geometryLine = preserveGeometry
     ? 'Keep the craniofacial geometry already named in APPROVED CHARACTER FACTS. Do not replace it with a stock oval beautified face.'
@@ -462,21 +673,37 @@ const compileFaceIdentityLock = (
   const landmarkLine = preserveGeometry
     ? 'Keep any mole, scar, dental, brow or asymmetry landmark already named; do not invent a conflicting mark.'
     : `Signature landmark, visible in every face view: ${landmark.direction}.`;
+  const styleLine = useLeadBeauty
+    ? `LEAD LOOK PACKAGE — a galã whose look must not clone another series: hair color: ${hasNamedHairColor(facts) ? 'keep the hair color already named in APPROVED CHARACTER FACTS' : hairColor.direction}; hair texture: ${hasNamedHairTexture(facts) ? 'keep the hair texture already named' : hairTexture.direction}; body: ${hasNamedBody(facts) ? 'keep the body already named' : body.direction}.`
+    : '';
   const samefaceLine = useLeadBeauty
-    ? 'ANTI-SAMEFACE: Do not keep a generic oval face and only change hair color, eye color or clothes. Identity comes from bone structure, eye spacing, nose silhouette and one tiny cosmetic landmark. Do NOT add scars, crooked teeth, dark circles, a broken nose, receding chin, gummy smile, fatigue or weathered aging unless already named in APPROVED CHARACTER FACTS. Keep only a barely-visible 1-2 mm left-right asymmetry. Skin: healthy, even, camera-ready with restrained pores — not airbrushed plastic and not damaged. This is a lead: clearly attractive on a phone screen, yet immediately recognizable as THIS person.'
-    : 'ANTI-SAMEFACE: Do not keep a generic oval face and only change hair color, eye color or clothes. Bone structure, nose, jaw, eye spacing and landmark must make this character immediately distinguishable from other series characters of similar age and gender. Required: stable left-right asymmetry, natural pores at viewing distance, individual brows, realistic teeth, flyaway hair. Forbidden: beauty-filter skin, perfectly symmetrical features, oversized glossy eyes, tiny default nose, cloned influencer jaw, waxy pores-free complexion, fashion-campaign posing.';
+    ? 'ANTI-SAMEFACE: This is a vertical-drama GALÃ: extremely attractive on a phone, like a ReelShort/DramaBox lead, but NOT the same cloned runway/Instagram model used in every series. Identity comes from bone structure, eye spacing, nose silhouette, hair package and one tiny cosmetic landmark. Do NOT add scars, crooked teeth, dark circles, a broken nose, receding chin, gummy smile or fatigue unless already named. Keep only a barely-visible 1-2 mm left-right asymmetry. Skin: healthy, glowing, camera-ready — not airbrushed plastic. Different series must produce different beautiful people, not the same face with a new hair dye.'
+    : 'ANTI-SAMEFACE: Do not keep a generic oval face and only change hair color, eye color or clothes. Follow the attractiveness register above. Bone structure, nose, jaw and landmark must make this character distinguishable from the leads of this series.';
 
   return {
-    block: `FACE IDENTITY LOCK — invent one specific person, never the default GPT Image 2 / Instagram / stock-model composite.
-ATTRACTIVENESS REGISTER — ${attractiveness.id}: ${attractiveness.direction}
-${geometryLine}
-${landmarkLine}
-${samefaceLine}`,
+    block: [
+      'FACE IDENTITY LOCK — invent one specific person, never the default GPT Image 2 / Instagram / stock-model composite.',
+      `ATTRACTIVENESS REGISTER — ${attractiveness.id}: ${attractiveness.direction}`,
+      originLine,
+      geometryLine,
+      landmarkLine,
+      styleLine,
+      samefaceLine,
+    ].filter(Boolean).join('\n'),
     metadata: {
       faceAttractivenessRegister: attractiveness.id,
       faceCastBand: useLeadBeauty ? 'lead' : 'supporting',
       faceGeometryVariant: preserveGeometry ? 'facts-owned' : geometry.id,
       faceLandmarkVariant: preserveGeometry ? 'facts-owned' : landmark.id,
+      originCountry: preserveOrigin ? 'facts-owned' : origin.country,
+      originVariant: preserveOrigin ? 'facts-owned' : origin.id,
+      ...(useLeadBeauty
+        ? {
+          leadHairColorVariant: hasNamedHairColor(facts) ? 'facts-owned' : hairColor.id,
+          leadHairTextureVariant: hasNamedHairTexture(facts) ? 'facts-owned' : hairTexture.id,
+          leadBodyVariant: hasNamedBody(facts) ? 'facts-owned' : body.id,
+        }
+        : {}),
     },
   };
 };

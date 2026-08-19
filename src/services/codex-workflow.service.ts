@@ -296,7 +296,7 @@ const bibleContract = `
 Create the series title, contract, characters, environments, props and references. Do not create episode cards, episodes, hook_chain, season architecture, or spine yet.
 The premise itself must generate ongoing tension (power imbalance, forbidden proximity, a ticking claim, or a structural bind). Do not rely on misunderstandings that a single conversation would dissolve.
 Keep the speaking core to 2-4 characters. Write for 9:16 close-ups and a cold viewer who may arrive from TikTok with no synopsis.
-CAST FACE DIVERSITY: each character.appearance is a casting identity card, not a hair-and-wardrobe sketch. For every character include age band, Brazilian regional phenotype without stereotype, face shape, nose, jaw/chin, eye shape and spacing, brows, mouth, skin texture, hair texture (not only color), body, outfit, one unique landmark, and an attractiveness register. LEADS (protagonist, opposing force, romantic pair): pretty-but-distinctive / lead-camera-beauty. Identity comes from bone structure, eye spacing and nose silhouette plus one tiny cosmetic landmark (beauty mark, dimple, widow’s peak, faint nose freckles). Do not give leads scars, chipped teeth, dark circles, broken noses, receding chins, gummy smiles or fatigue. They must look clearly attractive on a 9:16 phone screen, yet not share the same AI/Instagram face. SUPPORTING CAST may use striking-not-pretty, ordinary-real-person or lived-in. Across the cast, no two characters may share the same face family. Do not write perfect features or model-like; name anatomy instead. At least one supporting speaker may be ordinary-looking.
+CAST FACE DIVERSITY: each character.appearance is a casting identity card that MUST open with "Origem: [país]. Traços visíveis: [pele, olhos, cabelo desta origem]." Characters are NOT default Brazilian. Vary origins across Korea, Japan, China, Philippines, Mexico, Colombia, Argentina, Nigeria, Ethiopia, Italy, France, Spain, Portugal, Turkey, Lebanon, India, Sweden, USA and Brazil — Brazil is one option, not the default. CAST NAMES: invent a given name + family name that belongs to that country. Ban repeating Costa, Silva, Menezes, Ventura, Tavares, Oliveira. Dialogue stays in the project language even when the character is not Brazilian. Include age, face shape, nose, jaw, eyes, hair color AND texture, body, outfit, one cosmetic landmark. LEADS (protagonist and romantic cover faces): galã/gata — extremely attractive vertical-drama leads with a fitness-capable body. They must NOT clone one runway/Instagram face across series. Vary ruiva, loira, morena, preta, castanha when plausible for the origin; liso, ondulado, cacheado, curto; lean fitness vs athletic vs runner-lean. SUPPORTING CAST: beautiful only when the story needs it.
 result shape:
 {
   "title": "original series title, 2 to 6 words, never just the user's raw idea or a genre word like Romance",
@@ -315,7 +315,7 @@ result shape:
   },
   "references": [{"id":"same reference_id","label":"...","category":"CHARACTER_MASTER or LOCATION_MASTER or PROP_MASTER","description":"canonical image prompt-ready description","canonical":true,"metadata":{}}]
 }
-Invent a distinctive series title. Include at least 4 characters, 3 environments and 3 props. Write logline and names in the project language.
+Invent a distinctive series title. Include at least 4 characters, 3 environments and 3 props. Write the logline in the project language. Character names may come from any country and must match each character's declared origin.
 `;
 
 const sheetsContract = `
@@ -331,7 +331,7 @@ result shape:
   "references": [{"id":"same reference_id","label":"...","category":"CHARACTER_MASTER or LOCATION_MASTER or PROP_MASTER","description":"canonical image prompt-ready description","canonical":true,"metadata":{}}]
 }
 Reuse names, roles and reference_ids already in PROJECT_DATA_JSON. Expand them into complete visual and dramatic sheets. If SCOPE is characters, omit environments and props. If SCOPE is locations, omit characters and props. If SCOPE is props, omit characters and environments. For SCOPE all, include at least 4 characters, 3 environments and 3 props. Write in the project language.
-When expanding characters, rewrite appearance into a craniofacial identity card: face shape, nose, jaw, eye geometry, brows, mouth, skin, unique landmark, hair texture, body, outfit, and an attractiveness register. Protagonist, opposing force and romantic pair use pretty-but-distinctive lead-camera-beauty with cosmetic landmarks only. Supporting characters may be striking, ordinary or lived-in. No two characters may differ only by hair or clothes. Ban generic AI beauty faces.
+When expanding characters, rewrite appearance into a craniofacial identity card that starts with country of origin and visible ancestry. Invent or keep names that match that country; do not default to Brazilian names. Protagonist and romantic cover faces are galãs: extremely attractive, fitness-capable, varied hair/body so they do not clone other series. Supporting characters are beautiful only if the role needs it.
 `;
 
 const architectureContract = (target: number) => `
