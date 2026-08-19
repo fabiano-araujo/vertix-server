@@ -103,11 +103,25 @@ const suppliedPromptLooksCanonical = (prompt: string): boolean => {
   );
 };
 
+const looksLikeCompiledPrompt = (prompt: string): boolean => {
+  const normalized = prompt.toLowerCase();
+  return (
+    suppliedPromptLooksCanonical(prompt)
+    || normalized.includes('photorealistic canonical prop continuity')
+    || normalized.includes('left 70%')
+    || normalized.includes('approved character facts')
+    || normalized.includes('approved location facts')
+    || normalized.includes('approved prop facts')
+    || normalized.includes('location-scout photograph')
+    || normalized.includes('identity sheet')
+  );
+};
+
 const characterFacts = (input: ReferenceImagePromptInput): string => {
   const metadata = input.metadata || {};
   return uniqueFacts([
     cleanText(input.description, 4_000),
-    suppliedPromptLooksCanonical(cleanText(input.prompt, 20_000))
+    looksLikeCompiledPrompt(cleanText(input.prompt, 20_000))
       ? ''
       : cleanText(input.prompt, 4_000),
     ...selectedMetadataFacts(metadata, [
@@ -125,7 +139,7 @@ const locationFacts = (input: ReferenceImagePromptInput): string => {
   const metadata = input.metadata || {};
   return uniqueFacts([
     cleanText(input.description, 4_000),
-    suppliedPromptLooksCanonical(cleanText(input.prompt, 20_000))
+    looksLikeCompiledPrompt(cleanText(input.prompt, 20_000))
       ? ''
       : cleanText(input.prompt, 4_000),
     ...selectedMetadataFacts(metadata, [
@@ -141,7 +155,7 @@ const propFacts = (input: ReferenceImagePromptInput): string => {
   const metadata = input.metadata || {};
   return uniqueFacts([
     cleanText(input.description, 4_000),
-    suppliedPromptLooksCanonical(cleanText(input.prompt, 20_000))
+    looksLikeCompiledPrompt(cleanText(input.prompt, 20_000))
       ? ''
       : cleanText(input.prompt, 4_000),
     ...selectedMetadataFacts(metadata, [
