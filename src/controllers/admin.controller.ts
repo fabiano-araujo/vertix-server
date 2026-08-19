@@ -164,6 +164,7 @@ export const startReferenceImageJob = async (
         status: started.job.status,
         progress: started.job.progress,
         createdAt: started.job.createdAt,
+        outputData: parseJsonField(started.job.outputData),
         capabilityToken: started.capabilityToken,
         capabilityExpiresAt: started.capabilityExpiresAt,
       },

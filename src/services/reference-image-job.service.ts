@@ -452,10 +452,12 @@ export const uploadReferenceImage = async (
     label: item.label,
     category: item.category,
     description: item.description,
+    prompt: item.prompt,
     canonical: item.canonical,
     publicUrl: ingested.publicUrl,
     metadata: {
       ...item.metadata,
+      compiledPrompt: item.prompt,
       storageKey: ingested.storageKey,
       generatedBy: 'codex-imagegen',
       imageModel: 'gpt-image-2',

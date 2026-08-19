@@ -19,11 +19,13 @@ test('adult character uses the complete hybrid reference contract by default', (
   assert.equal(result.promptContract, REFERENCE_IMAGE_PROMPT_CONTRACT);
   assert.equal(result.visualReferenceMode, 'hybrid_face_compat');
   assert.match(result.prompt, /LEFT 70% — THREE FULL-BODY TURNAROUND VIEWS/);
-  assert.match(result.prompt, /RIGHT 30% — LARGE BROKEN PHOTOGRAPHIC PORTRAIT/);
+  assert.match(result.prompt, /HEAD-TO-BODY SCALE LOCK/);
+  assert.match(result.prompt, /RIGHT PANEL GROUND/);
   assert.match(result.prompt, /EXACTLY\s+SIX/);
-  assert.match(result.prompt, /pure white #FFFFFF/i);
+  assert.match(result.prompt, /#F7F6F2/);
   assert.match(result.prompt, /terno preto sóbrio/);
   assert.match(result.prompt, /Isabela Costa/);
+  assert.doesNotMatch(result.prompt, /snowy or cold neutral outdoor background/);
 });
 
 test('explicit child character uses the standard photoreal reference mode', () => {
@@ -211,6 +213,55 @@ test('named craniofacial facts are preserved instead of a hashed geometry', () =
   assert.equal(result.promptMetadata?.faceGeometryVariant, 'facts-owned');
   assert.match(result.prompt, /Keep the craniofacial geometry already named/);
   assert.match(result.prompt, /rosto em formato de coração/i);
+});
+
+test('a protagonist defaults to camera-beauty identity without damage marks', () => {
+  const result = compileReferenceImagePrompt({
+    label: 'Lívia Menezes',
+    category: 'CHARACTER_MASTER',
+    description: 'Mulher brasileira de 28 anos, terno bege.',
+    metadata: { role: 'Protagonista' },
+  });
+
+  assert.equal(result.promptMetadata?.faceAttractivenessRegister, 'lead_camera_beauty');
+  assert.equal(result.promptMetadata?.faceCastBand, 'lead');
+  assert.match(result.prompt, /clearly attractive series lead/);
+  assert.match(result.prompt, /tiny cosmetic landmark/);
+  assert.doesNotMatch(result.prompt, /chipped upper-left incisor/);
+  assert.doesNotMatch(result.prompt, /scar breaking the right eyebrow/);
+  assert.doesNotMatch(result.prompt, /childhood break/);
+});
+
+test('an opposing force also uses lead camera beauty', () => {
+  const result = compileReferenceImagePrompt({
+    label: 'Diego Ventura',
+    category: 'CHARACTER_MASTER',
+    description: 'Homem brasileiro de 30 anos, camisa azul.',
+    metadata: { role: 'Força oposta' },
+  });
+
+  assert.equal(result.promptMetadata?.faceAttractivenessRegister, 'lead_camera_beauty');
+  assert.equal(result.promptMetadata?.faceCastBand, 'lead');
+});
+
+test('two leads still receive different craniofacial packages', () => {
+  const livia = compileReferenceImagePrompt({
+    label: 'Lívia Menezes',
+    category: 'CHARACTER_MASTER',
+    description: 'Mulher brasileira de 28 anos, terno bege.',
+    metadata: { role: 'Protagonista' },
+  });
+  const diego = compileReferenceImagePrompt({
+    label: 'Diego Ventura',
+    category: 'CHARACTER_MASTER',
+    description: 'Homem brasileiro de 30 anos, camisa azul.',
+    metadata: { role: 'Força oposta' },
+  });
+
+  assert.notEqual(
+    livia.promptMetadata?.faceGeometryVariant,
+    diego.promptMetadata?.faceGeometryVariant,
+  );
 });
 
 test('an ordinary-looking brief keeps the ordinary attractiveness register', () => {

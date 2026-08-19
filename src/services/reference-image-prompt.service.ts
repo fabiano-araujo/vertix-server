@@ -231,8 +231,12 @@ const coverTypographySystems = [
 
 const faceAttractivenessRegisters = [
   {
+    id: 'lead_camera_beauty',
+    direction: 'A clearly attractive series lead on a phone screen: camera-beautiful, healthy and magnetic. Attractiveness comes from harmonious but SPECIFIC bone structure — the kind of face a casting director would pick for a protagonist — not from a generic AI/Instagram composite and not from damage. Keep skin even and camera-ready, with only restrained pores. Do not add fatigue, scars, crooked teeth, a broken nose, receding chin, gummy smile or weathered aging. Pretty or handsome in a distinctive way, like a recognizable lead actor, never a cloned beauty filter.',
+  },
+  {
     id: 'attractive_distinctive',
-    direction: 'This person can be attractive, but the attractiveness must come from THIS specific bone structure, not from a smoothed generic beauty-filter face. Pretty or handsome in a particular, irregular way — never the default AI influencer composite.',
+    direction: 'This person can be attractive, but the attractiveness must come from THIS specific bone structure, not from a smoothed generic beauty-filter face. Pretty or handsome in a particular way — never the default AI influencer composite.',
   },
   {
     id: 'striking_irregular',
@@ -245,6 +249,37 @@ const faceAttractivenessRegisters = [
   {
     id: 'lived_in',
     direction: 'A lived-in face with life on the surface: pores, slight fatigue, natural lines appropriate to age, uneven tone. Interesting rather than pretty. Not a beauty campaign and not aged into caricature.',
+  },
+] as const;
+
+const supportingAttractivenessRegisters = faceAttractivenessRegisters.filter(
+  (item) => item.id !== 'lead_camera_beauty',
+);
+
+const leadFaceGeometries = [
+  {
+    id: 'heart-wide-set-almond',
+    direction: 'Heart-shaped photogenic face, wide-set large almond eyes, high defined cheekbones, short refined nose with a softly rounded tip, full Cupid’s bow and a slim complete jaw with a slightly pointed chin. Camera-beautiful and immediately specific, not a stock oval.',
+  },
+  {
+    id: 'oval-high-cheek-straight-nose',
+    direction: 'Balanced oval with slightly high cheekbones, a straight narrow elegant nose, medium-full lips, clean jaw, short refined philtrum and softly arched even brows. Lead-actor beauty whose identity lives in the cheek plane and nose silhouette.',
+  },
+  {
+    id: 'diamond-full-mouth',
+    direction: 'Diamond face, prominent sculpted cheekbones, slightly narrow forehead, full lower lip, straight elegant nose and elongated almond eyes. Pretty or handsome in a carved, recognizable way.',
+  },
+  {
+    id: 'long-elegant-deep-set',
+    direction: 'Longer elegant face, deep-set eyes, high straight nose without a bump, defined but not bulky jaw, longer neck and a calm camera-ready mouth. Attractive like a specific leading actor, never a damaged or average face.',
+  },
+  {
+    id: 'square-clean-handsome',
+    direction: 'Photogenic square face, even wide-set eyes, straight medium-width nose, full brows, strong clean jaw and a proportionate chin. Leading-man or strong-lead geometry: handsome, specific and unscarred.',
+  },
+  {
+    id: 'inverted-triangle-large-eyes',
+    direction: 'Inverted-triangle silhouette with a broader forehead, large slightly upturned eyes, delicate tapered jaw, small straight nose and a short philtrum. Youthful lead beauty with a unique eye-to-jaw ratio.',
   },
 ] as const;
 
@@ -280,6 +315,33 @@ const faceGeometries = [
   {
     id: 'compact-heavy-brow-wide-alar',
     direction: 'Compact face, short lower third, wide alar base, thick brows that nearly meet, smallish eyes, a hint of nasolabial fold and a strong chin button.',
+  },
+] as const;
+
+const leadFaceLandmarks = [
+  {
+    id: 'beauty-mole-near-lip',
+    direction: 'a tiny dark beauty mark about 8 mm left of the mouth corner, elegant and present in every view, never a scar',
+  },
+  {
+    id: 'right-resting-dimple',
+    direction: 'a shallow dimple only on the right cheek, visible even at rest',
+  },
+  {
+    id: 'faint-bridge-freckles',
+    direction: 'a faint pretty dusting of freckles only across the nose bridge, never heavy sun damage',
+  },
+  {
+    id: 'higher-left-brow-arch',
+    direction: 'the left brow arch sits 1-2 mm higher than the right, a subtle identity cue without looking injured',
+  },
+  {
+    id: 'widow-peak-hairline',
+    direction: 'a soft widow’s-peak hairline that stays identical in every view',
+  },
+  {
+    id: 'inner-corner-beauty-mark',
+    direction: 'a pin-prick beauty mark just below the inner corner of the left eye',
   },
 ] as const;
 
@@ -349,6 +411,21 @@ const requestedAttractivenessRegister = (
   return undefined;
 };
 
+const isLeadCharacter = (input: ReferenceImagePromptInput): boolean => {
+  const role = readableValue(metadataValue(input.metadata || {}, [
+    'role',
+    'dramatic_function',
+    'dramaticFunction',
+  ]));
+  const text = `${role} ${input.category || ''} ${characterFacts(input)}`
+    .toLocaleLowerCase('pt-BR');
+  return (
+    /\b(protagonista|protagonist|hero[ií]na|for[cç]a oposta|opposing.?force|antagonista|antagonist|interesse rom[aâ]ntico|par rom[aâ]ntico|love interest)\b/i
+      .test(text)
+    || /OPPOSING_FORCE/.test(cleanText(input.category, 120).toUpperCase())
+  );
+};
+
 const compileFaceIdentityLock = (
   input: ReferenceImagePromptInput,
 ): { block: string; metadata: Record<string, string> } => {
@@ -356,18 +433,27 @@ const compileFaceIdentityLock = (
   const seed = stableHash(
     `${cleanText(input.label, 180).toLocaleLowerCase('pt-BR')}|${facts.toLocaleLowerCase('pt-BR')}`,
   );
+  const lead = isLeadCharacter(input);
   const requestedRegister = requestedAttractivenessRegister(facts);
-  const attractivenessIndex = requestedRegister
-    ? Math.max(0, faceAttractivenessRegisters.findIndex((item) =>
-      item.id === requestedRegister))
-    : seed % faceAttractivenessRegisters.length;
-  const attractiveness = faceAttractivenessRegisters[attractivenessIndex];
-  const geometry = faceGeometries[
-    Math.floor(seed / faceAttractivenessRegisters.length) % faceGeometries.length
+  const useLeadBeauty = lead
+    && requestedRegister !== 'ordinary_real'
+    && requestedRegister !== 'lived_in';
+  const attractiveness = requestedRegister && !useLeadBeauty
+    ? faceAttractivenessRegisters.find((item) => item.id === requestedRegister)
+      || faceAttractivenessRegisters[0]
+    : useLeadBeauty
+      ? faceAttractivenessRegisters[0]
+      : supportingAttractivenessRegisters[
+        seed % supportingAttractivenessRegisters.length
+      ];
+  const geometryPool = useLeadBeauty ? leadFaceGeometries : faceGeometries;
+  const landmarkPool = useLeadBeauty ? leadFaceLandmarks : faceLandmarks;
+  const geometry = geometryPool[
+    Math.floor(seed / supportingAttractivenessRegisters.length) % geometryPool.length
   ];
-  const landmark = faceLandmarks[
-    Math.floor(seed / (faceAttractivenessRegisters.length * faceGeometries.length))
-      % faceLandmarks.length
+  const landmark = landmarkPool[
+    Math.floor(seed / (supportingAttractivenessRegisters.length * geometryPool.length))
+      % landmarkPool.length
   ];
   const preserveGeometry = hasCraniofacialLock(facts);
   const geometryLine = preserveGeometry
@@ -376,15 +462,19 @@ const compileFaceIdentityLock = (
   const landmarkLine = preserveGeometry
     ? 'Keep any mole, scar, dental, brow or asymmetry landmark already named; do not invent a conflicting mark.'
     : `Signature landmark, visible in every face view: ${landmark.direction}.`;
+  const samefaceLine = useLeadBeauty
+    ? 'ANTI-SAMEFACE: Do not keep a generic oval face and only change hair color, eye color or clothes. Identity comes from bone structure, eye spacing, nose silhouette and one tiny cosmetic landmark. Do NOT add scars, crooked teeth, dark circles, a broken nose, receding chin, gummy smile, fatigue or weathered aging unless already named in APPROVED CHARACTER FACTS. Keep only a barely-visible 1-2 mm left-right asymmetry. Skin: healthy, even, camera-ready with restrained pores — not airbrushed plastic and not damaged. This is a lead: clearly attractive on a phone screen, yet immediately recognizable as THIS person.'
+    : 'ANTI-SAMEFACE: Do not keep a generic oval face and only change hair color, eye color or clothes. Bone structure, nose, jaw, eye spacing and landmark must make this character immediately distinguishable from other series characters of similar age and gender. Required: stable left-right asymmetry, natural pores at viewing distance, individual brows, realistic teeth, flyaway hair. Forbidden: beauty-filter skin, perfectly symmetrical features, oversized glossy eyes, tiny default nose, cloned influencer jaw, waxy pores-free complexion, fashion-campaign posing.';
 
   return {
     block: `FACE IDENTITY LOCK — invent one specific person, never the default GPT Image 2 / Instagram / stock-model composite.
 ATTRACTIVENESS REGISTER — ${attractiveness.id}: ${attractiveness.direction}
 ${geometryLine}
 ${landmarkLine}
-ANTI-SAMEFACE: Do not keep a generic oval face and only change hair color, eye color or clothes. Bone structure, nose, jaw, eye spacing and landmark must make this character immediately distinguishable from other series characters of similar age and gender. Required: stable left-right asymmetry, natural pores at viewing distance, individual brows, realistic teeth, flyaway hair. Forbidden: beauty-filter skin, perfectly symmetrical features, oversized glossy eyes, tiny default nose, cloned influencer jaw, waxy pores-free complexion, fashion-campaign posing.`,
+${samefaceLine}`,
     metadata: {
       faceAttractivenessRegister: attractiveness.id,
+      faceCastBand: useLeadBeauty ? 'lead' : 'supporting',
       faceGeometryVariant: preserveGeometry ? 'facts-owned' : geometry.id,
       faceLandmarkVariant: preserveGeometry ? 'facts-owned' : landmark.id,
     },
@@ -604,6 +694,12 @@ images with no cracks, glass or missing areas. The back view must face completel
 away and reveal no facial feature or facial profile; its back-of-head hair remains
 a normal photorealistic photograph.
 
+HEAD-TO-BODY SCALE LOCK: every head — drawn or photographic — must be a normal
+adult head on that same body, about 1/7.5 to 1/8 of the full standing height. The
+drawn jaw sits exactly on the photographic neck and matches its width. Hard
+failure: bobblehead, oversized sketch cranium, manga-scale head, or a drawn head
+wider than the shoulders.
+
 DRAWN HEADS ON FRONT AND SIDE BODIES: replace the complete visible head region in
 the front and side views — face, ears, hairline and all head hair — with a clean,
 unmistakably hand-drawn graphite-pencil or fine-ink illustration aligned naturally
@@ -623,30 +719,37 @@ divider, show one dominant, large, front-facing head-and-shoulders portrait of t
 same character. It must be unmistakably photorealistic — a believable real
 photograph taken on a professional camera in natural daylight — with natural skin
 variation, stable asymmetry, realistic eyes, individual hair and flyaways,
-restrained contrast, true-to-life color and subtle sensor grain. Use a simple
-snowy or cold neutral outdoor background softened only by real camera depth, not
-a glamour studio or cinematic-poster treatment.
+restrained contrast, true-to-life color and subtle sensor grain.
 
-THE RIGHT PORTRAIT IS THE ONLY SHATTERED ELEMENT: divide the COMPLETE VISIBLE
-PHOTOGRAPHIC HEAD PORTRAIT — FACE PLUS ALL SURROUNDING HEAD HAIR — into EXACTLY
-SIX large, physically disconnected, closed glass polygons. Together, the six
-pieces must unmistakably reconstruct one aligned readable head: eyes/brow, nose,
-cheeks, lips, chin, jaw, skin, hairline and outer hair silhouette. Every piece
-carries substantial photographic face and/or hair content; never create
-transparent empty panes, blank wedges or a hollow mask. Use exactly two upper
-pieces, two middle pieces and two lower pieces — upper-left, upper-right,
-middle-left, middle-right, lower-left and lower-right — around one empty
-pure-white impact opening near the lower nose or mouth. There is NO central
-seventh piece.
+RIGHT PANEL GROUND: the entire right 30% uses the SAME flat off-white sheet
+background as the left (#F7F6F2). Do NOT place snow, trees, sky, street, bokeh
+landscape, studio seamless or any real environment behind the portrait. Shoulders,
+collar, tie and upper chest remain one intact photographic garment on off-white.
+Only the head plus all head hair is shattered. A winter scene or outdoor
+background anywhere on the sheet is a hard failure.
+
+THE RIGHT PORTRAIT IS THE ONLY SHATTERED ELEMENT: this is NOT cracked glass laid
+over an intact photo. Cut the COMPLETE VISIBLE PHOTOGRAPHIC HEAD — FACE PLUS ALL
+SURROUNDING HEAD HAIR — into EXACTLY SIX large, physically disconnected, closed
+glass polygons floating on empty off-white. Together, the six pieces must
+unmistakably reconstruct one aligned readable head: eyes/brow, nose, cheeks, lips,
+chin, jaw, skin, hairline and outer hair silhouette. Every piece carries
+substantial photographic face and/or hair content; never create transparent empty
+panes, blank wedges or a hollow mask. Use exactly two upper pieces, two middle
+pieces and two lower pieces — upper-left, upper-right, middle-left, middle-right,
+lower-left and lower-right — around one empty pure-white impact opening near the
+lower nose or mouth. There is NO central seventh piece and NO star-shaped hole
+that eats the eyes.
 
 PURE-WHITE GAP CONTRACT: use broad clean gaps around 6-8% of the complete
 head-portrait width and a central opening around 12-15%. Between all six pieces
 show ONLY flat pure white #FFFFFF, completely empty. No face, hair, skin, body,
-portrait continuation, texture, reflection, translucent glass or hidden intact
-head may exist beneath or between the shards. Shadows may touch only the immediate
-shard edge and must not fill or darken a gap. Each piece has its own complete thin
-silver-gray perimeter; the pieces do not touch or share a center ring. No drawn
-crack-line overlay, secondary cracks, small chips or internal subdivisions.
+coat, landscape, portrait continuation, texture, reflection, translucent glass or
+hidden intact head may exist beneath or between the shards. Shadows may touch only
+the immediate shard edge and must not fill or darken a gap. Each piece has its own
+complete thin silver-gray perimeter; the pieces do not touch or share a center
+ring. No drawn crack-line overlay, secondary cracks, small chips or internal
+subdivisions.
 
 IDENTITY SOURCE CONTRACT: the large broken photograph on the right is the
 canonical source for facial identity, skin, eyes and hair. The photographic
