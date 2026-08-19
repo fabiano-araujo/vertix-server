@@ -12,6 +12,7 @@ const dolaRoutes = (app: any) => {
   app.get('/dola-api/config', dolaController.getConfig);
   app.post('/dola-api/jobs', dolaController.createJob);
   app.get('/dola-api/jobs/:jobId', dolaController.getJob);
+  app.post('/dola-api/jobs/:jobId/cancel', dolaController.cancelJob);
 };
 
 export default dolaRoutes;

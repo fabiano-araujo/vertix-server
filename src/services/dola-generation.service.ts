@@ -1,12 +1,12 @@
 import axios from 'axios';
-import { spawn } from 'child_process';
+import { spawn, type ChildProcess } from 'child_process';
 import crypto from 'crypto';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
-export type DolaJobStatus = 'queued' | 'running' | 'completed' | 'failed';
+export type DolaJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 export type DolaReferenceInput = {
   id?: string;
@@ -60,6 +60,71 @@ const PUBLIC_PREFIX = '/dola-runs';
 const MAX_PROFILE_ATTEMPTS = Number(process.env.DOLA_MAX_PROFILE_ATTEMPTS || 3);
 
 const jobs = new Map<string, DolaJob>();
+const runners = new Map<string, ChildProcess>();
+
+export const describeDolaError = (raw: string) => {
+  const text = String(raw || '').trim();
+  if (/interrompida|cancelled by user/i.test(text)) {
+    return 'Geração interrompida.';
+  }
+  if (/DOLA_DAILY_LIMIT|daily_limit/i.test(text)) {
+    return 'Este perfil Dola já usou o crédito de hoje. Tente gerar de novo para usar outro perfil.';
+  }
+  if (/DOLA_HIGH_DEMAND|high_demand/i.test(text)) {
+    return 'O Dola está com alta demanda. Espere alguns minutos e tente de novo.';
+  }
+  if (/DOLA_AUTH_LOST|authentication_lost|AUTH_LOST/i.test(text)) {
+    return 'A sessão do Dola expirou neste perfil. Faça login de novo e tente gerar outra vez.';
+  }
+  if (/DOLA_REJECTED_NO_POINT|rejected_before_consumption|REJECTED_NO_POINT/i.test(text)) {
+    return 'O Dola recusou a cena antes de gastar crédito. Revise o prompt e as referências.';
+  }
+  if (/DOLA_DURATION_CLARIFICATION|duration_clarification/i.test(text)) {
+    return 'O Dola pediu para confirmar a duração. Gere de novo com 5s ou 10s.';
+  }
+  if (/DOLA_TERMINAL_REJECTION|terminal_rejection/i.test(text)) {
+    return 'O Dola recusou exibir o vídeo (copyright ou áudio). Ajuste a cena e tente de novo.';
+  }
+  if (/DOLA_UNRECOGNIZED_RESPONSE|unrecognized_provider_response/i.test(text)) {
+    return 'O Dola não confirmou a geração. Tente de novo.';
+  }
+  if (/DOLA_CONFIRMATION_UNRESOLVED|confirmation_unresolved/i.test(text)) {
+    return 'O Dola não iniciou a geração depois da confirmação. Tente de novo.';
+  }
+  if (/Timed out after/i.test(text)) {
+    return 'O Dola estourou o tempo de espera. Tente gerar de novo.';
+  }
+  if (/ECONNREFUSED|não está no ar/i.test(text)) {
+    return 'O gerador Dola local não está no ar. Rode yarn dola:serve na pasta server/.';
+  }
+  const cleaned = text.replace(/^profile-\d+:\s*/i, '').trim();
+  return cleaned || 'Falha ao gerar no Dola.';
+};
+
+const isCancelled = (job: DolaJob) =>
+  (jobs.get(job.id) || job).status === 'cancelled';
+
+const cancelledError = () => {
+  const error = new Error('Geração interrompida.');
+  (error as Error & { cancelled?: boolean }).cancelled = true;
+  return error;
+};
+
+const killProcessTree = (child: ChildProcess) => {
+  if (!child.pid) return;
+  try {
+    if (process.platform === 'win32') {
+      spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+        windowsHide: true,
+        stdio: 'ignore',
+      });
+      return;
+    }
+    child.kill('SIGTERM');
+  } catch {
+    child.kill();
+  }
+};
 
 const runsRoot = () =>
   path.resolve(process.env.DOLA_RUNS_DIR || path.join(process.cwd(), 'public', 'dola-runs'));
@@ -192,13 +257,14 @@ const materializeReferences = async (references: DolaReferenceInput[], directory
   return files;
 };
 
-const waitForRunner = (command: string, args: string[], cwd: string) =>
+const waitForRunner = (jobId: string, command: string, args: string[], cwd: string) =>
   new Promise<{ code: number; stdout: string; stderr: string }>((resolve, reject) => {
     const child = spawn(command, args, {
       cwd,
       windowsHide: false,
       env: process.env,
     });
+    runners.set(jobId, child);
     let stdout = '';
     let stderr = '';
     child.stdout?.on('data', (chunk) => {
@@ -207,8 +273,12 @@ const waitForRunner = (command: string, args: string[], cwd: string) =>
     child.stderr?.on('data', (chunk) => {
       stderr += chunk.toString();
     });
-    child.on('error', reject);
+    child.on('error', (error) => {
+      if (runners.get(jobId) === child) runners.delete(jobId);
+      reject(error);
+    });
     child.on('close', (code) => {
+      if (runners.get(jobId) === child) runners.delete(jobId);
       resolve({ code: code ?? 1, stdout, stderr });
     });
   });
@@ -269,7 +339,12 @@ const runWithProfile = async (params: {
     error_screenshot: path.join(params.workDir, `error-profile-${params.profile}.png`),
   };
   fs.writeFileSync(jobFile, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
-  return waitForRunner(process.execPath, [DEFAULT_BROWSER_RUNNER, '--job', jobFile], params.workDir);
+  return waitForRunner(
+    params.job.id,
+    process.execPath,
+    [DEFAULT_BROWSER_RUNNER, '--job', jobFile],
+    params.workDir,
+  );
 };
 
 const executeJob = async (job: DolaJob, input: CreateDolaJobInput) => {
@@ -307,6 +382,7 @@ const executeJob = async (job: DolaJob, input: CreateDolaJobInput) => {
   });
 
   for (const profile of candidates) {
+    if (isCancelled(job)) throw cancelledError();
     const current = jobs.get(job.id) || job;
     touchJob(current, {
       status: 'running',
@@ -327,6 +403,7 @@ const executeJob = async (job: DolaJob, input: CreateDolaJobInput) => {
       model: String(input.model || DEFAULT_MODEL),
       creditProfile: String(input.creditProfile || DEFAULT_CREDIT_PROFILE),
     });
+    if (isCancelled(job)) throw cancelledError();
     const payload = parseRunnerPayload(result.stdout);
     if (result.code === 0 && fs.existsSync(outputFile)) {
       const videoUrl = `${publicBaseUrl()}${PUBLIC_PREFIX}/${job.id}/output.mp4`;
@@ -350,11 +427,11 @@ const executeJob = async (job: DolaJob, input: CreateDolaJobInput) => {
     ].includes(recorded) || /DOLA_(DAILY_LIMIT|REJECTED_NO_POINT|HIGH_DEMAND|AUTH_LOST)/.test(stderr);
     errors.push(`profile-${profile}: ${recorded || stderr.slice(-280) || `exit ${result.code}`}`);
     if (!retryable) {
-      throw new Error(errors[errors.length - 1]);
+      throw new Error(describeDolaError(errors[errors.length - 1]));
     }
   }
 
-  throw new Error(`Nenhum perfil Dola conseguiu gerar: ${errors.join('; ')}`);
+  throw new Error(describeDolaError(`Nenhum perfil Dola conseguiu gerar: ${errors.join('; ')}`));
 };
 
 export const getDolaJob = (id: string) => jobs.get(id) || null;
@@ -374,14 +451,42 @@ export const createDolaJob = (input: CreateDolaJobInput) => {
   jobs.set(id, job);
   void executeJob(job, input).catch((error) => {
     const current = jobs.get(id) || job;
+    if (current.status === 'cancelled' || error?.cancelled) {
+      if (current.status !== 'cancelled') {
+        touchJob(current, {
+          status: 'cancelled',
+          message: 'Geração interrompida.',
+          error: 'Geração interrompida.',
+        });
+      }
+      return;
+    }
+    const message = describeDolaError(error?.message || String(error));
     touchJob(current, {
       status: 'failed',
       progress: current.progress || 0.1,
-      error: error?.message || String(error),
-      message: error?.message || 'Falha ao gerar no Dola',
+      error: message,
+      message,
     });
   });
   return job;
+};
+
+export const cancelDolaJob = (id: string) => {
+  const job = jobs.get(id);
+  if (!job) return null;
+  if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
+    return job;
+  }
+  const child = runners.get(id);
+  const cancelled = touchJob(job, {
+    status: 'cancelled',
+    progress: job.progress || 0.1,
+    message: 'Geração interrompida.',
+    error: 'Geração interrompida.',
+  });
+  if (child) killProcessTree(child);
+  return cancelled;
 };
 
 export const dolaConfig = () => ({

@@ -57,6 +57,20 @@ export const getJob = async (request: FastifyRequest, reply: FastifyReply) => {
   }
 };
 
+export const cancelJob = async (request: FastifyRequest, reply: FastifyReply) => {
+  try {
+    const params: any = request.params || {};
+    const job = dolaGenerationService.cancelDolaJob(String(params.jobId || ''));
+    if (!job) {
+      reply.code(404).send({ success: false, message: 'Job Dola não encontrado.' });
+      return;
+    }
+    reply.send({ success: true, data: job });
+  } catch (error) {
+    fail(reply, error);
+  }
+};
+
 export const getConfig = async (_request: FastifyRequest, reply: FastifyReply) => {
   reply.send({ success: true, data: dolaGenerationService.dolaConfig() });
 };
