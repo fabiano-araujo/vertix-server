@@ -809,10 +809,35 @@ export const getUserJobs = async (userId: number, limit: number = 20) => {
   });
 };
 
+export const JOB_CANCELLED_MESSAGE = 'Cancelled by user';
+
+const jobAbortControllers = new Map<number, AbortController>();
+
+export const registerJobAbort = (jobId: number, abortController: AbortController) => {
+  const previous = jobAbortControllers.get(jobId);
+  if (previous && previous !== abortController && !previous.signal.aborted) {
+    previous.abort();
+  }
+  jobAbortControllers.set(jobId, abortController);
+};
+
+export const abortRegisteredJob = (jobId: number): boolean => {
+  const abortController = jobAbortControllers.get(jobId);
+  if (!abortController) return false;
+  if (!abortController.signal.aborted) abortController.abort();
+  return true;
+};
+
+export const clearJobAbort = (jobId: number) => {
+  jobAbortControllers.delete(jobId);
+};
+
 /**
  * Cancel a pending/processing job
  */
 export const cancelJob = async (jobId: number) => {
+  abortRegisteredJob(jobId);
+
   const job = await prisma.aIGenerationJob.findUnique({
     where: { id: jobId },
   });
@@ -829,7 +854,8 @@ export const cancelJob = async (jobId: number) => {
     where: { id: jobId },
     data: {
       status: 'FAILED',
-      errorMessage: 'Cancelled by user',
+      errorMessage: JOB_CANCELLED_MESSAGE,
+      completedAt: new Date(),
     },
   });
 };

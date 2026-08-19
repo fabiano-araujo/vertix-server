@@ -206,7 +206,12 @@ export const analyzeImage = async (
     }
   } catch (error: any) {
     // Verifica se o erro foi causado por um abort manual
-    if (error.name === 'AbortError' || error.message === 'canceled') {
+    if (
+      error.name === 'AbortError' ||
+      error.name === 'CanceledError' ||
+      error.code === 'ERR_CANCELED' ||
+      error.message === 'canceled'
+    ) {
       console.log('Requisição cancelada pelo usuário');
       throw new Error('Requisição cancelada pelo usuário');
     }
@@ -318,7 +323,12 @@ export const generateText = async (
     }
   } catch (error: any) {
     // Verifica se o erro foi causado por um abort manual
-    if (error.name === 'AbortError' || error.message === 'canceled') {
+    if (
+      error.name === 'AbortError' ||
+      error.name === 'CanceledError' ||
+      error.code === 'ERR_CANCELED' ||
+      error.message === 'canceled'
+    ) {
       console.log('Requisição cancelada pelo usuário');
       throw new Error('Requisição cancelada pelo usuário');
     }
