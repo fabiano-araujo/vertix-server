@@ -424,7 +424,7 @@ resultJson shape:
   "takes":[{"number":1,"title":"Cena 1 · Shot 1 · ...","durationSeconds":8,"aiShortCore":"dynamic natural-language production description for only this shot, including camera-visible action and exact spoken dialogue from the locked script","audioPrompt":"speaker/voice/performance locks and exact dialogue; no music unless script requires it","transitionMode":"EPISODE_START or MATCH_ON_ACTION","usePreviousLastFrame":false,"generateSeedanceAudio":true,"referenceIds":["..."],"notes":"continuity and final-state note"}],
   "productionPackage":{"status":"PROMPTS_READY_FOR_REVIEW","delivery_mode":"episode_segment","duration_mode":"VARIABLE_UP_TO_LIMIT","prompt_contract":"ai_short_core_plus_code_style_preset_v1"}
 }
-Return one take for every script shot and preserve its exact duration. aiShortCore must not contain generic fixed cinematography, style, subtitle, watermark, anatomy, flicker, music, or negative-prompt boilerplate because Vertix appends those locks in code.
+Return one take for every script shot and preserve its exact duration. aiShortCore must not contain generic fixed cinematography, style, subtitle, watermark, anatomy, flicker, music, or negative-prompt boilerplate because Vertix appends those locks in code. Omit referenceIds; Vertix assigns them from the locked scene's cast, location and mentioned props so the uploaded @Image order matches the prompt.
 `;
 
 const reviseContract = `
