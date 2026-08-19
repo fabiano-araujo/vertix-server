@@ -652,7 +652,11 @@ const generateOutlineInStages = async (
   const plannedBlocks = plannedSeasonBlocks(target, profile.paywall_episode);
   const requestedFrom = asEpisodeNumber(request.fromEpisode) || 1;
   const batchSize = asEpisodeNumber(request.batchSize) || DEFAULT_OUTLINE_BATCH_SIZE;
-  const isContinue = requestedFrom > 1 && hasLockedSeasonArchitecture(bible);
+  const isContinue =
+    requestedFrom > 1 &&
+    (hasLockedSeasonArchitecture(bible) ||
+      (Array.isArray(bible.episode_cards) && bible.episode_cards.length > 0) ||
+      (Array.isArray(project.episodes) && project.episodes.length > 0));
   const batch = outlineBatchRange(isContinue ? requestedFrom : 1, target, batchSize);
   const spineThrough = spineThroughForBatch(batch);
 
