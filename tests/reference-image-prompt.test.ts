@@ -383,3 +383,76 @@ test('a compiled standard character prompt remains standard when reused', () => 
   assert.equal(reused.prompt, first.prompt);
   assert.equal(reused.visualReferenceMode, 'standard_ultra_photoreal');
 });
+
+test('leads lock cinematic presence, silhouette, wardrobe lane and a contradiction', () => {
+  const result = compileReferenceImagePrompt({
+    label: 'Sora Kim',
+    category: 'CHARACTER_MASTER',
+    description: 'Mulher de 28 anos.',
+    metadata: { role: 'Protagonista' },
+  });
+
+  assert.match(result.prompt, /ENSEMBLE RULE/);
+  assert.match(result.prompt, /SCREEN PRESENCE/);
+  assert.match(result.prompt, /SILHOUETTE LOCK/);
+  assert.match(result.prompt, /WARDROBE LANE/);
+  assert.match(result.prompt, /PHONE-SCREEN HOOK/);
+  assert.match(result.prompt, /LEAD CONTRADICTION/);
+  assert.match(result.prompt, /AGE READ/);
+  assert.ok(result.promptMetadata?.screenPresenceVariant);
+  assert.ok(result.promptMetadata?.silhouetteVariant);
+  assert.ok(result.promptMetadata?.wardrobeLaneVariant);
+  assert.ok(result.promptMetadata?.leadContradictionVariant);
+  assert.equal(result.promptMetadata?.presentationGuess, 'femme');
+});
+
+test('two leads receive different silhouette or wardrobe packages', () => {
+  const a = compileReferenceImagePrompt({
+    label: 'Sora Kim',
+    category: 'CHARACTER_MASTER',
+    description: 'Mulher de 28 anos, terno bege.',
+    metadata: { role: 'Protagonista' },
+  });
+  const b = compileReferenceImagePrompt({
+    label: 'Nina Rocha',
+    category: 'CHARACTER_MASTER',
+    description: 'Mulher de 27 anos, vestido vermelho.',
+    metadata: { role: 'Protagonista' },
+  });
+  const key = (item: ReturnType<typeof compileReferenceImagePrompt>) =>
+    `${item.promptMetadata?.silhouetteVariant}|${item.promptMetadata?.wardrobeLaneVariant}|${item.promptMetadata?.screenPresenceVariant}|${item.promptMetadata?.leadHairColorVariant}`;
+  assert.notEqual(key(a), key(b));
+});
+
+test('a named Swedish origin keeps a northern-plausible hair color', () => {
+  const result = compileReferenceImagePrompt({
+    label: 'Elsa Berg',
+    category: 'CHARACTER_MASTER',
+    description: 'Mulher sueca de 29 anos.',
+    metadata: { role: 'Protagonista' },
+  });
+
+  assert.equal(result.promptMetadata?.originVariant, 'facts-owned');
+  assert.ok(
+    ['honey-blonde', 'ash-brown', 'copper-red', 'facts-owned'].includes(
+      result.promptMetadata?.leadHairColorVariant || '',
+    ),
+  );
+  assert.doesNotMatch(result.prompt, /deep black hair/);
+});
+
+test('supporting cast still receives a distinctive silhouette and phone hook', () => {
+  const result = compileReferenceImagePrompt({
+    label: 'Rafaela Costa',
+    category: 'CHARACTER_MASTER',
+    description: 'Mulher de 27 anos, jaqueta preta.',
+    metadata: { role: 'Confidente' },
+  });
+
+  assert.equal(result.promptMetadata?.faceCastBand, 'supporting');
+  assert.match(result.prompt, /SUPPORTING DISTINCTIVENESS/);
+  assert.match(result.prompt, /PHONE-SCREEN HOOK/);
+  assert.ok(result.promptMetadata?.silhouetteVariant);
+  assert.ok(result.promptMetadata?.phoneHookVariant);
+  assert.doesNotMatch(result.prompt, /LEAD CONTRADICTION/);
+});

@@ -361,6 +361,204 @@ const leadBodies = [
   },
 ] as const;
 
+const cinematicPresences = [
+  {
+    id: 'ice-glass',
+    direction: 'ICE-GLASS presence, the method of prestige K-drama and boardroom thrillers: stillness, high grooming, cool appraisal in the eyes, almost no wasted motion. Extremely attractive. Power happens in the face before dialogue. Never a copied celebrity.',
+  },
+  {
+    id: 'sun-heat',
+    direction: 'SUN-HEAT presence, the method of Latin and Mediterranean romantic leads: warm skin, strong brows, a mouth that reads on a phone, heat in the gaze. Telenovela-lead magnetism without cloning any star.',
+  },
+  {
+    id: 'quiet-old-money',
+    direction: 'QUIET OLD-MONEY presence, the method of prestige family sagas: unhurried face, understated grooming, wealth in posture and fabric rather than logos. Attractive because they look born to rooms other people enter nervously.',
+  },
+  {
+    id: 'street-voltage',
+    direction: 'STREET-VOLTAGE presence, the method of youthful streaming leads: slightly lived hair, alert eyes, a body that looks mid-decision. Sexy because they are awake, not because they are a catalog mannequin.',
+  },
+  {
+    id: 'regal-bone',
+    direction: 'REGAL-BONE presence, the method of diaspora prestige leads: sculpted cheekbones, proud carriage, a face that holds a huge close-up. Beauty reads as lineage and gravity, never as a beauty-filter oval.',
+  },
+  {
+    id: 'soft-devastating',
+    direction: 'SOFT-DEVASTATING presence, the method of underestimated romantic leads: gentler features that become lethal in a held stare. The viewer should want to protect them and fear them in the same close-up.',
+  },
+] as const;
+
+type HairPresentation = 'femme' | 'masc' | 'unspecified';
+
+const hairSilhouettes: ReadonlyArray<{
+  id: string;
+  presentation: readonly HairPresentation[];
+  direction: string;
+}> = [
+  {
+    id: 'center-part-curtain',
+    presentation: ['femme', 'unspecified'],
+    direction: 'center-part curtain hair in two specific wings, readable from behind; never a generic blowout',
+  },
+  {
+    id: 'sharp-jaw-bob',
+    presentation: ['femme'],
+    direction: 'a sharp jaw-length bob with a precise nape; the back of the head is a graphic shape',
+  },
+  {
+    id: 'long-one-weight',
+    presentation: ['femme', 'unspecified'],
+    direction: 'long hair with one heavy weight, usually over the left shoulder, never symmetrically fluffed',
+  },
+  {
+    id: 'severe-low-bun',
+    presentation: ['femme', 'unspecified'],
+    direction: 'a severe low bun or knot, clean nape, at most one controlled tendril',
+  },
+  {
+    id: 'sculpted-high-pony',
+    presentation: ['femme'],
+    direction: 'a sculpted high pony or slicked crown with volume only at the tail',
+  },
+  {
+    id: 'halo-coils',
+    presentation: ['femme', 'masc', 'unspecified'],
+    direction: 'defined coils or twists with a specific hairline; never a generic afro blur',
+  },
+  {
+    id: 'glam-pixie',
+    presentation: ['femme'],
+    direction: 'a glamorous pixie or crop that exposes ears and nape',
+  },
+  {
+    id: 'wolf-layers',
+    presentation: ['femme'],
+    direction: 'wolf-cut layers with a distinct shaggy outline from behind',
+  },
+  {
+    id: 'slicked-power',
+    presentation: ['masc', 'unspecified'],
+    direction: 'slicked or wet-look pushback with a hard hairline; a power silhouette from front and back',
+  },
+  {
+    id: 'textured-crop',
+    presentation: ['masc', 'unspecified'],
+    direction: 'short textured crop, volume on top, tight sides, a specific crown swirl',
+  },
+  {
+    id: 'short-fade',
+    presentation: ['masc'],
+    direction: 'a clean fade with a designed hairline and slightly longer textured top',
+  },
+  {
+    id: 'masc-curtain',
+    presentation: ['masc'],
+    direction: 'medium curtain / 90s sweep off the forehead, not a mullet unless already named',
+  },
+  {
+    id: 'longer-swept',
+    presentation: ['masc', 'unspecified'],
+    direction: 'slightly longer than a crop, swept off the forehead, romantic without looking unwashed',
+  },
+];
+
+const wardrobeLanes = [
+  {
+    id: 'quiet-black-tailoring',
+    direction: 'quiet black or charcoal tailoring, no logos, expensive-looking cloth — this character owns the black-suit lane',
+  },
+  {
+    id: 'ivory-old-money',
+    direction: 'ivory, camel or cream knits and coats; an old-money light palette',
+  },
+  {
+    id: 'blood-accent',
+    direction: 'neutral clothes plus ONE recurring blood-red item (lip, scarf, lining, heels or tie)',
+  },
+  {
+    id: 'navy-authority',
+    direction: 'ink navy as the owned color: coat, knit or dress, never generic office blue',
+  },
+  {
+    id: 'street-leather',
+    direction: 'worn black or brown leather jacket as the silhouette, not fashion-campaign leather',
+  },
+  {
+    id: 'clinical-white',
+    direction: 'a recurring white shirt, coat or uniformly clean piece that reads as control or profession',
+  },
+  {
+    id: 'earth-warm',
+    direction: 'olive, terracotta or tobacco — a warm earth lane no other speaking character should copy',
+  },
+  {
+    id: 'jewel-green',
+    direction: 'one jewel-green garment or lining as the signature color, otherwise restrained',
+  },
+] as const;
+
+const phoneScreenHooks = [
+  {
+    id: 'thin-metal-glasses',
+    direction: 'thin metal glasses in EVERY view, including the back (temples visible). They are part of the face, not optional.',
+  },
+  {
+    id: 'left-ear-cuff',
+    direction: 'a small silver ear cuff only on the left ear, visible in front and profile',
+  },
+  {
+    id: 'never-removed-watch',
+    direction: 'one specific watch always on the left wrist, readable in full-body views',
+  },
+  {
+    id: 'gold-collar-necklace',
+    direction: 'a short gold necklace sitting at the collarbone in every clothed view',
+  },
+  {
+    id: 'signature-outerwear',
+    direction: 'the same distinctive outer layer in all three turnaround views; this is their costume, not generic wardrobe',
+  },
+  {
+    id: 'asymmetric-part',
+    direction: 'a hard far-left or far-right hair part that never returns to center',
+  },
+  {
+    id: 'one-ring',
+    direction: 'one specific ring always on the right hand, never omitted in front views',
+  },
+  {
+    id: 'grooming-signature',
+    direction: 'a grooming signature readable at phone scale: either a defined dark lip if makeup is plausible, or unusually sharp groomed brows',
+  },
+] as const;
+
+const leadContradictions = [
+  {
+    id: 'stubborn-cowlick',
+    direction: 'a stubborn cowlick at the front hairline that grooming never fully kills — still a galã',
+  },
+  {
+    id: 'strong-pretty-nose',
+    direction: 'a slightly stronger, characterful nose that remains beautiful on camera (not broken, not crooked)',
+  },
+  {
+    id: 'scholar-glasses',
+    direction: 'thin glasses on an extremely attractive face, like a prestige lead who thinks for a living',
+  },
+  {
+    id: 'one-loose-tendril',
+    direction: 'even when hair is controlled, one specific tendril always escapes near the left temple',
+  },
+  {
+    id: 'charm-gap',
+    direction: 'a tiny natural gap between the upper front teeth, charming and camera-pretty, never chipped or damaged',
+  },
+  {
+    id: 'visible-pretty-ears',
+    direction: 'ears that sit slightly high and are often visible — a specific pretty silhouette, not jug ears',
+  },
+] as const;
+
 const originPackages = [
   {
     id: 'south-korea',
@@ -457,23 +655,165 @@ const originPackages = [
     country: 'Brazil',
     direction: 'Brazilian adult mixed ancestry: caramel-to-olive skin, dark or green-hazel eyes, brown or black hair. Use Brazil only as one option among many, never as the silent default.',
   },
+  {
+    id: 'uk',
+    country: 'United Kingdom',
+    direction: 'British adult: fair-to-light olive Northern/Western-European skin, blue, green, hazel or brown eyes, hair from ash-blonde to dark brown. Names must be British, not Brazilian.',
+  },
+  {
+    id: 'germany',
+    country: 'Germany',
+    direction: 'German adult: fair-to-light Central-European skin, blue, gray or brown eyes, ash-blonde to dark brown hair. Names must be German.',
+  },
+  {
+    id: 'thailand',
+    country: 'Thailand',
+    direction: 'Thai adult: light-to-medium warm Southeast-Asian skin, dark brown eyes, black hair, softly rounded midface. Names must be Thai.',
+  },
+  {
+    id: 'egypt',
+    country: 'Egypt',
+    direction: 'Egyptian adult: olive-to-warm-brown North-African skin, dark eyes, dark hair, defined brows. Names must be Egyptian/Arabic.',
+  },
+  {
+    id: 'greece',
+    country: 'Greece',
+    direction: 'Greek adult: olive Mediterranean skin, dark brown or green-hazel eyes, dark or chestnut hair. Names must be Greek.',
+  },
+  {
+    id: 'ireland',
+    country: 'Ireland',
+    direction: 'Irish adult: fair skin that can freckle, green, blue or hazel eyes, hair from copper-red to dark brown. Names must be Irish.',
+  },
 ] as const;
 
+const originHairColorIds: Record<string, readonly string[]> = {
+  'south-korea': ['deep-black', 'warm-brunette', 'ash-brown', 'honey-blonde'],
+  japan: ['deep-black', 'warm-brunette', 'ash-brown'],
+  china: ['deep-black', 'warm-brunette'],
+  philippines: ['deep-black', 'warm-brunette', 'caramel-morena'],
+  mexico: ['deep-black', 'warm-brunette', 'caramel-morena', 'copper-red'],
+  colombia: ['deep-black', 'warm-brunette', 'caramel-morena'],
+  argentina: ['warm-brunette', 'honey-blonde', 'ash-brown', 'copper-red', 'deep-black'],
+  nigeria: ['deep-black', 'warm-brunette'],
+  ethiopia: ['deep-black', 'warm-brunette'],
+  italy: ['warm-brunette', 'deep-black', 'caramel-morena', 'honey-blonde'],
+  france: ['ash-brown', 'honey-blonde', 'warm-brunette', 'copper-red'],
+  spain: ['deep-black', 'warm-brunette', 'caramel-morena'],
+  portugal: ['deep-black', 'warm-brunette', 'caramel-morena'],
+  turkey: ['deep-black', 'warm-brunette', 'ash-brown'],
+  lebanon: ['deep-black', 'warm-brunette', 'honey-blonde'],
+  india: ['deep-black', 'warm-brunette', 'caramel-morena'],
+  sweden: ['honey-blonde', 'ash-brown', 'copper-red'],
+  usa: ['deep-black', 'warm-brunette', 'caramel-morena'],
+  brazil: ['copper-red', 'honey-blonde', 'warm-brunette', 'deep-black', 'caramel-morena', 'ash-brown'],
+  uk: ['honey-blonde', 'ash-brown', 'copper-red', 'warm-brunette'],
+  germany: ['ash-brown', 'honey-blonde', 'warm-brunette'],
+  thailand: ['deep-black', 'warm-brunette'],
+  egypt: ['deep-black', 'warm-brunette'],
+  greece: ['warm-brunette', 'deep-black', 'honey-blonde'],
+  ireland: ['copper-red', 'honey-blonde', 'ash-brown', 'warm-brunette'],
+};
+
+const originAliasMatchers: Array<[(typeof originPackages)[number]['id'], RegExp]> = [
+  ['south-korea', /\b(corean[oa]?|korean)\b/i],
+  ['japan', /\b(japon[eê]s[oa]?|japanese)\b/i],
+  ['china', /\b(chines[aeoa]?|chinese)\b/i],
+  ['philippines', /\b(filipin[oa]?)\b/i],
+  ['mexico', /\b(mexican[oa]?)\b/i],
+  ['colombia', /\b(colombian[oa]?)\b/i],
+  ['argentina', /\b(argentin[oa]?)\b/i],
+  ['nigeria', /\b(nigerian[oa]?)\b/i],
+  ['ethiopia', /\b(et[ií]ope|ethiopian)\b/i],
+  ['italy', /\b(italian[oa]?)\b/i],
+  ['france', /\b(frances[aeoa]?|french)\b/i],
+  ['spain', /\b(espanhol[oa]?|spanish)\b/i],
+  ['portugal', /\b(portugu[eê]s[oa]?)\b/i],
+  ['turkey', /\b(turkish|turc[oa])\b/i],
+  ['lebanon', /\b(liban[eê]s[oa]?|lebanese)\b/i],
+  ['india', /\b(indian[oa]?)\b/i],
+  ['sweden', /\b(suec[oa]?|swedish)\b/i],
+  ['usa', /\b(estadunidense|united states|black american)\b/i],
+  ['brazil', /\b(brasileir[oa]?|brazilian)\b/i],
+  ['uk', /\b(brit[aâ]nic[oa]?|british|ingl[eê]s[ea]?|united kingdom)\b/i],
+  ['germany', /\b(alem[aã][oa]?|german)\b/i],
+  ['thailand', /\b(tailand[eê]s[oa]?|thai)\b/i],
+  ['egypt', /\b(eg[ií]pci[oa]?|egyptian)\b/i],
+  ['greece', /\b(greg[oa]?|greek)\b/i],
+  ['ireland', /\b(irland[eê]s[oa]?|irish)\b/i],
+];
+
+const namedOriginId = (
+  facts: string,
+): (typeof originPackages)[number]['id'] | undefined => {
+  const text = facts.toLocaleLowerCase('pt-BR');
+  for (const pack of originPackages) {
+    if (text.includes(pack.country.toLowerCase())) return pack.id;
+  }
+  for (const [id, matcher] of originAliasMatchers) {
+    if (matcher.test(text)) return id;
+  }
+  return undefined;
+};
+
 const hasNamedOrigin = (facts: string): boolean =>
-  /\b(brasileir[oa]|brazilian|corean[oa]|korean|japones[oa]|japanese|chines[oa]|chinese|filipin[oa]|mexican[oa]|mexican|colombian[oa]|argentin[oa]|nigerian[oa]|et[ií]ope|ethiopian|italian[oa]|italian|frances[oa]|french|espanhol[oa]|spanish|portugu[eê]s[oa]|turkish|turc[oa]|liban[eê]s[oa]|lebanese|indian[oa]|indian|suec[oa]|swedish|american[oa]|estadunidense|origem|nascid[oa] em|from [a-z]{3,}|país|pais de origem)\b/i
-    .test(facts);
+  Boolean(namedOriginId(facts))
+  || /\b(origem\s*:|nascid[oa] em|pais de origem|país de origem)\b/i.test(facts);
 
 const hasNamedHairColor = (facts: string): boolean =>
   /\b(ruiv[oa]|loir[oa]|blond|redhead|brunette|moren[oa]|castanh[oa]|cabelo (preto|preta|castanho|loiro|ruivo|vermelho)|black hair|platinad|honey-blonde|copper)\b/i
     .test(facts);
 
 const hasNamedHairTexture = (facts: string): boolean =>
-  /\b(liso|ondulad[oa]|cachead[oa]|crespo|pixie|curto|longo|straight hair|wavy|curly|buzzed|raspado)\b/i
+  /\b(liso|ondulad[oa]|cachead[oa]|crespo|pixie|curto|longo|straight hair|wavy|curly|buzzed|raspado|bob|coque|bun|pony|fade|undercut|slicked|repicad|wolf[- ]cut|franja|curtain)\b/i
     .test(facts);
 
 const hasNamedBody = (facts: string): boolean =>
   /\b(fitness|atl[eé]tic|sarad[oa]|magr[oa]|plus[- ]size|corpo (fit|definido|esbelto)|broad[- ]shoulder|runner)\b/i
     .test(facts);
+
+const hasNamedWardrobe = (facts: string): boolean =>
+  /\b(terno|blazer|vestido|jaqueta|leather|couro|uniforme|scrubs|kimono|hanbok|sari|hijab|gravata|scarf|casaco|trench|tweed)\b/i
+    .test(facts);
+
+const inferPresentation = (input: ReferenceImagePromptInput): HairPresentation => {
+  const role = readableValue(metadataValue(input.metadata || {}, [
+    'role',
+    'gender',
+    'sexo',
+    'presentation',
+  ]));
+  const text = `${role} ${characterFacts(input)}`.toLocaleLowerCase('pt-BR');
+  if (/\b(mulher|moça|rapariga|heroína|atriz|gata|feminina|she\/her|female|woman|girl)\b/i.test(text)) {
+    return 'femme';
+  }
+  if (/\b(homem|rapaz|herói|ator|galã|masculin|he\/him|male|man|boy)\b/i.test(text)) {
+    return 'masc';
+  }
+  return 'unspecified';
+};
+
+const pickHashed = <T>(items: ReadonlyArray<T>, seed: number, salt: number): T =>
+  items[Math.floor(seed / salt) % items.length];
+
+const hairColorsForOrigin = (originId: string | undefined) => {
+  if (!originId) return leadHairColors;
+  const allowed = originHairColorIds[originId];
+  if (!allowed) return leadHairColors;
+  const filtered = leadHairColors.filter((item) => allowed.includes(item.id));
+  return filtered.length ? filtered : leadHairColors;
+};
+
+const silhouettesForPresentation = (presentation: HairPresentation) => {
+  const filtered = hairSilhouettes.filter((item) => {
+    if (presentation === 'unspecified') {
+      return item.presentation.includes('unspecified');
+    }
+    return item.presentation.includes(presentation)
+      || item.presentation.includes('unspecified');
+  });
+  return filtered.length ? filtered : hairSilhouettes;
+};
 
 const faceGeometries = [
   {
@@ -629,6 +969,7 @@ const compileFaceIdentityLock = (
     `${cleanText(input.label, 180).toLocaleLowerCase('pt-BR')}|${facts.toLocaleLowerCase('pt-BR')}`,
   );
   const lead = isLeadCharacter(input);
+  const presentation = inferPresentation(input);
   const requestedRegister = requestedAttractivenessRegister(facts);
   const useLeadBeauty = lead
     && requestedRegister !== 'ordinary_real'
@@ -642,29 +983,28 @@ const compileFaceIdentityLock = (
       ? faceAttractivenessRegisters.find((item) => item.id === requestedRegister)
         || storyAsWritten
       : storyAsWritten;
-  const geometryPool = useLeadBeauty ? leadFaceGeometries : faceGeometries;
-  const landmarkPool = useLeadBeauty ? leadFaceLandmarks : faceLandmarks;
-  const geometry = geometryPool[
-    Math.floor(seed / supportingAttractivenessRegisters.length) % geometryPool.length
-  ];
-  const landmark = landmarkPool[
-    Math.floor(seed / (supportingAttractivenessRegisters.length * geometryPool.length))
-      % landmarkPool.length
-  ];
-  const hairColor = leadHairColors[seed % leadHairColors.length];
-  const hairTexture = leadHairTextures[
-    Math.floor(seed / leadHairColors.length) % leadHairTextures.length
-  ];
-  const body = leadBodies[
-    Math.floor(seed / (leadHairColors.length * leadHairTextures.length))
-      % leadBodies.length
-  ];
-  const origin = originPackages[
-    Math.floor(seed / 13) % originPackages.length
-  ];
+  const geometry = useLeadBeauty
+    ? pickHashed(leadFaceGeometries, seed, supportingAttractivenessRegisters.length)
+    : pickHashed(faceGeometries, seed, supportingAttractivenessRegisters.length);
+  const landmark = useLeadBeauty
+    ? pickHashed(leadFaceLandmarks, seed, 11)
+    : pickHashed(faceLandmarks, seed, 11);
+  const hashedOrigin = pickHashed(originPackages, seed, 13);
+  const factsOriginId = namedOriginId(facts);
   const preserveOrigin = hasNamedOrigin(facts);
+  const origin = hashedOrigin;
+  const originForHair = factsOriginId || (preserveOrigin ? undefined : origin.id);
+  const hairPool = hairColorsForOrigin(originForHair);
+  const hairColor = pickHashed(hairPool, seed, 7);
+  const silhouettePool = silhouettesForPresentation(presentation);
+  const silhouette = pickHashed(silhouettePool, seed, 19);
+  const body = pickHashed(leadBodies, seed, 41);
+  const presence = pickHashed(cinematicPresences, seed, 17);
+  const wardrobe = pickHashed(wardrobeLanes, seed, 23);
+  const hook = pickHashed(phoneScreenHooks, seed, 29);
+  const contradiction = pickHashed(leadContradictions, seed, 31);
   const originLine = preserveOrigin
-    ? 'ORIGIN LOCK: keep the country and visible ancestry already named in APPROVED CHARACTER FACTS. The person must look like they come from that country.'
+    ? 'ORIGIN LOCK: keep the country and visible ancestry already named in APPROVED CHARACTER FACTS. The person must look like they come from that country. Hair color from any look package must stay plausible for that origin.'
     : `ORIGIN LOCK — country: ${origin.country}. Visible ancestry to preserve: ${origin.direction} Hair color from any look package must stay plausible for this origin.`;
   const preserveGeometry = hasCraniofacialLock(facts);
   const geometryLine = preserveGeometry
@@ -673,21 +1013,39 @@ const compileFaceIdentityLock = (
   const landmarkLine = preserveGeometry
     ? 'Keep any mole, scar, dental, brow or asymmetry landmark already named; do not invent a conflicting mark.'
     : `Signature landmark, visible in every face view: ${landmark.direction}.`;
+  const presenceLine = `SCREEN PRESENCE — ${presence.id}: ${presence.direction} Keep this presence plausible for the origin lock. Never imitate a real actor.`;
+  const silhouetteLine = hasNamedHairTexture(facts)
+    ? 'SILHOUETTE LOCK: keep the hair architecture already named in APPROVED CHARACTER FACTS. It must stay readable from behind and in a 9:16 freeze-frame.'
+    : `SILHOUETTE LOCK — ${silhouette.id}: ${silhouette.direction}. The back of the head must identify this person. Never default to long dark straight hair unless this exact lock says so.`;
+  const wardrobeLine = hasNamedWardrobe(facts)
+    ? `WARDROBE LANE — keep the clothes already named, but stay inside this color/temperature: ${wardrobe.direction}.`
+    : `WARDROBE LANE — ${wardrobe.id}: ${wardrobe.direction}. Recurring clothes stay in this lane so the ensemble does not dress as clones.`;
+  const hookLine = `PHONE-SCREEN HOOK — ${hook.id}: ${hook.direction}. This must be readable on a 9:16 phone, larger than a hidden mole.`;
   const styleLine = useLeadBeauty
-    ? `LEAD LOOK PACKAGE — a galã whose look must not clone another series: hair color: ${hasNamedHairColor(facts) ? 'keep the hair color already named in APPROVED CHARACTER FACTS' : hairColor.direction}; hair texture: ${hasNamedHairTexture(facts) ? 'keep the hair texture already named' : hairTexture.direction}; body: ${hasNamedBody(facts) ? 'keep the body already named' : body.direction}.`
+    ? `LEAD LOOK PACKAGE — a galã whose look must not clone another series: hair color: ${hasNamedHairColor(facts) ? 'keep the hair color already named in APPROVED CHARACTER FACTS' : hairColor.direction}; body: ${hasNamedBody(facts) ? 'keep the body already named' : body.direction}.`
+    : 'SUPPORTING DISTINCTIVENESS: do not upgrade this person into a protagonist-galã unless the facts already demand it, but they MUST still be a specific silhouette + wardrobe lane so they cannot be mistaken for the leads in a freeze-frame.';
+  const contradictionLine = useLeadBeauty
+    ? `LEAD CONTRADICTION — ${contradiction.id}: ${contradiction.direction}. Famous-series method: beauty plus one specific break, so they are not a catalog model.`
     : '';
   const samefaceLine = useLeadBeauty
-    ? 'ANTI-SAMEFACE: This is a vertical-drama GALÃ: extremely attractive on a phone, like a ReelShort/DramaBox lead, but NOT the same cloned runway/Instagram model used in every series. Identity comes from bone structure, eye spacing, nose silhouette, hair package and one tiny cosmetic landmark. Do NOT add scars, crooked teeth, dark circles, a broken nose, receding chin, gummy smile or fatigue unless already named. Keep only a barely-visible 1-2 mm left-right asymmetry. Skin: healthy, glowing, camera-ready — not airbrushed plastic. Different series must produce different beautiful people, not the same face with a new hair dye.'
-    : 'ANTI-SAMEFACE: Do not keep a generic oval face and only change hair color, eye color or clothes. Follow the attractiveness register above. Bone structure, nose, jaw and landmark must make this character distinguishable from the leads of this series.';
+    ? 'ANTI-SAMEFACE: This is a vertical-drama GALÃ: extremely attractive on a phone, like a ReelShort/DramaBox lead, but NOT the same cloned runway/Instagram model used in every series. Identity comes from bone structure, eye spacing, nose silhouette, hair architecture, wardrobe lane and the contradiction. Do NOT add scars, crooked teeth, dark circles, a broken nose, receding chin, gummy smile or fatigue unless already named. Keep only a barely-visible 1-2 mm left-right asymmetry. Skin: healthy, glowing, camera-ready — not airbrushed plastic. Different series must produce different beautiful people, not the same face with a new hair dye.'
+    : 'ANTI-SAMEFACE: Do not keep a generic oval face and only change hair color, eye color or clothes. Follow the attractiveness register above. Bone structure, silhouette, wardrobe lane and hook must make this character distinguishable from the leads of this series.';
 
   return {
     block: [
       'FACE IDENTITY LOCK — invent one specific person, never the default GPT Image 2 / Instagram / stock-model composite.',
+      'ENSEMBLE RULE: this person must be identifiable in a freeze-frame lineup by hair silhouette + wardrobe lane. Forbidden default: long dark straight hair + black blazer + oval pretty face, unless this exact package specifies it.',
+      'AGE READ: neck, hands, grooming and facial maturity must match the approved age. Do not default every adult to a 24-year-old beauty filter.',
       `ATTRACTIVENESS REGISTER — ${attractiveness.id}: ${attractiveness.direction}`,
       originLine,
+      presenceLine,
       geometryLine,
       landmarkLine,
+      silhouetteLine,
+      wardrobeLine,
+      hookLine,
       styleLine,
+      contradictionLine,
       samefaceLine,
     ].filter(Boolean).join('\n'),
     metadata: {
@@ -697,11 +1055,17 @@ const compileFaceIdentityLock = (
       faceLandmarkVariant: preserveGeometry ? 'facts-owned' : landmark.id,
       originCountry: preserveOrigin ? 'facts-owned' : origin.country,
       originVariant: preserveOrigin ? 'facts-owned' : origin.id,
+      screenPresenceVariant: presence.id,
+      silhouetteVariant: hasNamedHairTexture(facts) ? 'facts-owned' : silhouette.id,
+      wardrobeLaneVariant: wardrobe.id,
+      phoneHookVariant: hook.id,
+      presentationGuess: presentation,
       ...(useLeadBeauty
         ? {
           leadHairColorVariant: hasNamedHairColor(facts) ? 'facts-owned' : hairColor.id,
-          leadHairTextureVariant: hasNamedHairTexture(facts) ? 'facts-owned' : hairTexture.id,
+          leadHairTextureVariant: hasNamedHairTexture(facts) ? 'facts-owned' : silhouette.id,
           leadBodyVariant: hasNamedBody(facts) ? 'facts-owned' : body.id,
+          leadContradictionVariant: contradiction.id,
         }
         : {}),
     },
