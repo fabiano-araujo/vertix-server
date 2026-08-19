@@ -1,12 +1,18 @@
 import { FastifyInstance } from 'fastify';
 import episodeController from '../controllers/episode.controller';
-import { verifyToken } from '../middlewares/auth';
+import { optionalAuth, verifyToken } from '../middlewares/auth';
 import { verifyAdmin } from '../middlewares/admin';
 
 export default async function episodeRoutes(fastify: FastifyInstance) {
   // Public routes
-  fastify.get('/episodes/:id', episodeController.getEpisode);
-  fastify.get('/episodes/:id/next', episodeController.getNextEpisode);
+  fastify.get('/episodes/:id', {
+    preHandler: [optionalAuth],
+    handler: episodeController.getEpisode,
+  });
+  fastify.get('/episodes/:id/next', {
+    preHandler: [optionalAuth],
+    handler: episodeController.getNextEpisode,
+  });
 
   // Routes that don't require auth but benefit from it
   fastify.post('/episodes/:id/view', episodeController.recordView);
@@ -25,6 +31,16 @@ export default async function episodeRoutes(fastify: FastifyInstance) {
   fastify.post('/episodes/:id/share', {
     preHandler: [verifyToken],
     handler: episodeController.recordShare,
+  });
+
+  fastify.post('/episodes/:id/unlock', {
+    preHandler: [verifyToken],
+    handler: episodeController.unlockEpisode,
+  });
+
+  fastify.post('/episodes/:id/retention', {
+    preHandler: [verifyToken],
+    handler: episodeController.recordRetention,
   });
 
   // Admin routes

@@ -77,6 +77,8 @@ export const findEpisodeById = async (id: number) => {
           coverUrl: true,
           createdById: true,
           totalEpisodes: true,
+          freeEpisodeCount: true,
+          episodeUnlockCost: true,
         },
       },
       _count: {
@@ -94,6 +96,17 @@ export const findEpisodesBySeriesId = async (seriesId: number) => {
     where: { seriesId },
     orderBy: { episodeNumber: 'asc' },
     include: {
+      series: {
+        select: {
+          id: true,
+          title: true,
+          genre: true,
+          coverUrl: true,
+          totalEpisodes: true,
+          freeEpisodeCount: true,
+          episodeUnlockCost: true,
+        },
+      },
       _count: {
         select: {
           likes: true,
@@ -120,6 +133,8 @@ export const findEpisodeBySeriesAndNumber = async (seriesId: number, episodeNumb
           genre: true,
           coverUrl: true,
           totalEpisodes: true,
+          freeEpisodeCount: true,
+          episodeUnlockCost: true,
         },
       },
     },

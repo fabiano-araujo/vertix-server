@@ -58,6 +58,18 @@ export interface EpisodeSpineSlot {
 }
 
 export const SPINE_CHUNK_SIZE = 12;
+export const DEFAULT_OUTLINE_BATCH_SIZE = 5;
+
+export interface OutlineBatchRange {
+  fromEpisode: number;
+  throughEpisode: number;
+  targetEpisodeCount: number;
+  remaining: number;
+  canContinue: boolean;
+  nextFromEpisode: number | null;
+  batchSize: number;
+  isFullSeason: boolean;
+}
 
 const asMap = (value: unknown): Record<string, any> =>
   value && typeof value === 'object' && !Array.isArray(value)
@@ -406,6 +418,49 @@ export const spineChunkRanges = (
     ranges.push({ start, end: Math.min(n, start + size - 1) });
   }
   return ranges;
+};
+
+export const outlineBatchRange = (
+  fromEpisode: number,
+  targetEpisodeCount: number,
+  batchSize = DEFAULT_OUTLINE_BATCH_SIZE,
+): OutlineBatchRange => {
+  const target = Math.max(1, Math.trunc(targetEpisodeCount || 1));
+  const size = Math.max(1, Math.min(20, Math.trunc(batchSize || DEFAULT_OUTLINE_BATCH_SIZE)));
+  const from = Math.min(target, Math.max(1, Math.trunc(fromEpisode || 1)));
+  const through = Math.min(target, from + size - 1);
+  const remaining = Math.max(0, target - through);
+  return {
+    fromEpisode: from,
+    throughEpisode: through,
+    targetEpisodeCount: target,
+    remaining,
+    canContinue: remaining > 0,
+    nextFromEpisode: remaining > 0 ? through + 1 : null,
+    batchSize: size,
+    isFullSeason: from === 1 && through === target,
+  };
+};
+
+export const spineThroughForBatch = (batch: OutlineBatchRange): number =>
+  Math.min(batch.targetEpisodeCount, batch.throughEpisode + 1);
+
+export const spineChunkRangesIn = (
+  from: number,
+  through: number,
+  chunkSize = SPINE_CHUNK_SIZE,
+): Array<{ start: number; end: number }> => {
+  const start = Math.max(1, Math.trunc(from || 1));
+  const end = Math.max(start, Math.trunc(through || start));
+  return spineChunkRanges(end - start + 1, chunkSize).map((range) => ({
+    start: range.start + start - 1,
+    end: range.end + start - 1,
+  }));
+};
+
+export const hasLockedSeasonArchitecture = (bible: unknown): boolean => {
+  const blocks = asMap(asMap(bible).season_architecture).blocks;
+  return Array.isArray(blocks) && blocks.length > 0;
 };
 
 export const lockedRevealsForEpisode = (

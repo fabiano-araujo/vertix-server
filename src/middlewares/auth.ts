@@ -52,6 +52,23 @@ export const verifyToken = async (req: FastifyRequest, reply: FastifyReply) => {
   }
 };
 
+/**
+ * Anexa o usuario se o token existir, sem bloquear rotas publicas.
+ */
+export const optionalAuth = async (req: FastifyRequest, _reply: FastifyReply) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return;
+
+  const token = authHeader.split(' ')[1];
+  if (!token) return;
+
+  try {
+    req.user = jwt.verify(token, String(process.env.TOKEN_KEY));
+  } catch {
+    // Token ausente ou invalido: segue como visitante.
+  }
+};
+
 // Declare module para estender o tipo FastifyRequest
 declare module 'fastify' {
   interface FastifyRequest {

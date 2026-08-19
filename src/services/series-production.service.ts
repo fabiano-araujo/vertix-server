@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import storageService from './storage.service';
 import { prisma } from './prisma';
+import { paywallFieldsFromBible } from './episode-paywall.service';
 
 type ReferenceInput = {
   url?: string;
@@ -590,6 +591,7 @@ export const createDraftSeries = async (
       createdById: userId,
       status: String(body?.status || 'DRAFT'),
       isAiGenerated: body?.isAiGenerated !== false,
+      ...paywallFieldsFromBible(body?.seriesBible || body?.series_bible, Number(body?.totalEpisodes || body?.episodeCount || 0)),
     },
   });
 };
@@ -630,6 +632,18 @@ export const saveSeriesProductionPlan = async (
       ...planFields,
       rawPayload: jsonText(body),
       updatedById: userId,
+    },
+  });
+
+  const bible = parseJsonText(plan.seriesBible);
+  const episodeCount = Number(payload?.totalEpisodes || payload?.episodeCount || 0);
+  const paywall = paywallFieldsFromBible(bible, episodeCount);
+  await prisma.series.update({
+    where: { id: seriesId },
+    data: {
+      ...(episodeCount > 0 ? { totalEpisodes: episodeCount } : {}),
+      freeEpisodeCount: paywall.freeEpisodeCount,
+      episodeUnlockCost: paywall.episodeUnlockCost,
     },
   });
 

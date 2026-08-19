@@ -10,9 +10,12 @@ import {
   ensureFullSpine,
   lockedRevealsForEpisode,
   mergeSpine,
+  outlineBatchRange,
   plannedSeasonBlocks,
   recentCardsForPrompt,
   spineChunkRanges,
+  spineChunkRangesIn,
+  spineThroughForBatch,
 } from '../src/services/season-architecture.service';
 
 const coveredEpisodes = (episodeCount: number, paywall: number | null) => {
@@ -82,6 +85,38 @@ test('beat engine cuts the button in the last seconds for TikTok-speed retention
   const first = beatEngineForDuration(120);
   assert.equal(first.hook, '0-15s');
   assert.equal(first.button, '110-120s');
+});
+
+test('outline batches keep the full season map while generating cards in fives', () => {
+  const first = outlineBatchRange(1, 50, 5);
+  assert.deepEqual(first, {
+    fromEpisode: 1,
+    throughEpisode: 5,
+    targetEpisodeCount: 50,
+    remaining: 45,
+    canContinue: true,
+    nextFromEpisode: 6,
+    batchSize: 5,
+    isFullSeason: false,
+  });
+  assert.equal(spineThroughForBatch(first), 6);
+  assert.deepEqual(spineChunkRangesIn(1, 6), [{ start: 1, end: 6 }]);
+
+  const mid = outlineBatchRange(6, 50, 5);
+  assert.equal(mid.throughEpisode, 10);
+  assert.equal(mid.nextFromEpisode, 11);
+  assert.deepEqual(spineChunkRangesIn(6, 11), [{ start: 6, end: 11 }]);
+
+  const last = outlineBatchRange(46, 50, 5);
+  assert.equal(last.throughEpisode, 50);
+  assert.equal(last.canContinue, false);
+  assert.equal(last.nextFromEpisode, null);
+  assert.equal(spineThroughForBatch(last), 50);
+
+  const short = outlineBatchRange(1, 3, 5);
+  assert.equal(short.throughEpisode, 3);
+  assert.equal(short.canContinue, false);
+  assert.equal(short.isFullSeason, true);
 });
 
 test('spine chunks and locked reveals keep EP5 from spending an EP42 secret', () => {

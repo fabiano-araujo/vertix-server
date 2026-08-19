@@ -1,6 +1,12 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import recommendationService from '../services/recommendation.service';
 import * as watchHistoryRepository from '../repositories/watch-history.repository';
+import { decorateEpisodesForViewer } from '../services/episode-paywall.service';
+
+const viewerId = (req: FastifyRequest): number | undefined => {
+  const id = Number((req as any).user?.id);
+  return Number.isInteger(id) && id > 0 ? id : undefined;
+};
 
 // ============================================
 // FOR YOU FEED (Personalized)
@@ -14,10 +20,11 @@ export const getForYouFeed = async (req: FastifyRequest, reply: FastifyReply) =>
     const offset = parseInt(query.offset) || 0;
 
     const episodes = await recommendationService.getPersonalizedFeed(user.id, limit, offset);
+    const decorated = await decorateEpisodesForViewer(episodes, user.id);
 
     return reply.send({
       success: true,
-      data: episodes,
+      data: decorated,
       pagination: {
         limit,
         offset,
@@ -44,10 +51,11 @@ export const getTrendingFeed = async (req: FastifyRequest, reply: FastifyReply) 
     const offset = parseInt(query.offset) || 0;
 
     const episodes = await recommendationService.getTrendingFeed(limit, offset);
+    const decorated = await decorateEpisodesForViewer(episodes, viewerId(req));
 
     return reply.send({
       success: true,
-      data: episodes,
+      data: decorated,
       pagination: {
         limit,
         offset,
@@ -74,10 +82,11 @@ export const getNewReleasesFeed = async (req: FastifyRequest, reply: FastifyRepl
     const offset = parseInt(query.offset) || 0;
 
     const episodes = await recommendationService.getNewReleases(limit, offset);
+    const decorated = await decorateEpisodesForViewer(episodes, viewerId(req));
 
     return reply.send({
       success: true,
-      data: episodes,
+      data: decorated,
       pagination: {
         limit,
         offset,
@@ -105,10 +114,11 @@ export const getGenreFeed = async (req: FastifyRequest, reply: FastifyReply) => 
     const offset = parseInt(query.offset) || 0;
 
     const episodes = await recommendationService.getByGenre(genre, limit, offset);
+    const decorated = await decorateEpisodesForViewer(episodes, viewerId(req));
 
     return reply.send({
       success: true,
-      data: episodes,
+      data: decorated,
       pagination: {
         limit,
         offset,
@@ -138,7 +148,19 @@ export const getHomeCarousels = async (req: FastifyRequest, reply: FastifyReply)
     // If user is logged in, add continue watching
     let continueWatching: any[] = [];
     if (userId) {
-      continueWatching = await watchHistoryRepository.getContinueWatching(userId, 10);
+      const rows = await watchHistoryRepository.getContinueWatching(userId, 10);
+      const decoratedEpisodes = await decorateEpisodesForViewer(
+        rows.map((item: any) => ({
+          ...(item.episode || {}),
+          seriesId: item.episode?.seriesId || item.episode?.series?.id,
+          watchProgress: item.progress,
+        })),
+        userId,
+      );
+      continueWatching = rows.map((item: any, index: number) => ({
+        ...item,
+        episode: decoratedEpisodes[index] || item.episode,
+      }));
     }
 
     return reply.send({
@@ -171,10 +193,21 @@ export const getContinueWatching = async (req: FastifyRequest, reply: FastifyRep
     const limit = parseInt(query.limit) || 10;
 
     const episodes = await watchHistoryRepository.getContinueWatching(user.id, limit);
+    const decoratedEpisodes = await decorateEpisodesForViewer(
+      episodes.map((item: any) => ({
+        ...(item.episode || {}),
+        seriesId: item.episode?.seriesId || item.episode?.series?.id,
+        watchProgress: item.progress,
+      })),
+      user.id,
+    );
 
     return reply.send({
       success: true,
-      data: episodes,
+      data: episodes.map((item: any, index: number) => ({
+        ...item,
+        episode: decoratedEpisodes[index] || item.episode,
+      })),
     });
   } catch (error: any) {
     console.error('[Feed Controller] Error getting continue watching:', error.message);
@@ -256,9 +289,14 @@ export const getUserLikes = async (req: FastifyRequest, reply: FastifyReply) => 
 
     await prisma.$disconnect();
 
+    const decorated = await decorateEpisodesForViewer(
+      likes.map((l: any) => l.episode),
+      user.id,
+    );
+
     return reply.send({
       success: true,
-      data: likes.map((l: any) => l.episode),
+      data: decorated,
       pagination: {
         total,
         limit,

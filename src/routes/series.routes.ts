@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import seriesController from '../controllers/series.controller';
-import { verifyToken } from '../middlewares/auth';
+import { optionalAuth, verifyToken } from '../middlewares/auth';
 import { verifyAdmin } from '../middlewares/admin';
 
 export default async function seriesRoutes(fastify: FastifyInstance) {
@@ -9,7 +9,10 @@ export default async function seriesRoutes(fastify: FastifyInstance) {
   fastify.get('/series/trending', seriesController.getTrendingSeries);
   fastify.get('/series/new', seriesController.getNewSeries);
   fastify.get('/series/:id', seriesController.getSeriesById);
-  fastify.get('/series/:id/episodes', seriesController.getSeriesEpisodes);
+  fastify.get('/series/:id/episodes', {
+    preHandler: [optionalAuth],
+    handler: seriesController.getSeriesEpisodes,
+  });
 
   // Admin routes
   fastify.post('/series', {

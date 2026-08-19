@@ -4,6 +4,37 @@ import * as creditsRepository from '../repositories/credits.repository';
 type UserParams = { userId: string };
 type DeviceParams = { deviceId: string };
 
+export const getMyCredits = async (req: FastifyRequest, reply: FastifyReply) => {
+  try {
+    const userId = Number((req as any).user?.id);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return reply.code(401).send({
+        success: false,
+        message: 'Autenticacao necessaria'
+      });
+    }
+
+    const userCredits = await creditsRepository.getUserCredits(userId);
+    await creditsRepository.updateLastCheck(userId);
+
+    return reply.code(200).send({
+      success: true,
+      data: {
+        availableCredits: userCredits.availableCredits,
+        lastReset: userCredits.lastReset,
+        locked: userCredits.isLocked(),
+      }
+    });
+  } catch (error: any) {
+    console.error('Erro ao obter creditos do usuario:', error);
+    return reply.code(500).send({
+      success: false,
+      message: 'Erro ao obter creditos do usuario',
+      error: error.message
+    });
+  }
+};
+
 /**
  * Créditos por usuário autenticado
  */

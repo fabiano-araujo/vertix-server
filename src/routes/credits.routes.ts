@@ -2,6 +2,11 @@ import * as creditsController from '../controllers/credits.controller';
 import { verifyToken } from '../middlewares/auth';
 
 const creditsRoutes = (app: any) => {
+  app.get('/credits/me', {
+    onRequest: [verifyToken],
+    handler: creditsController.getMyCredits
+  });
+
   app.get('/credits/:userId', {
     onRequest: [verifyToken],
     handler: creditsController.getUserCredits

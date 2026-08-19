@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import * as seriesRepository from '../repositories/series.repository';
 import * as episodeRepository from '../repositories/episode.repository';
+import { decorateEpisodesForViewer } from '../services/episode-paywall.service';
 
 // ============================================
 // LIST SERIES
@@ -95,10 +96,15 @@ export const getSeriesEpisodes = async (req: FastifyRequest, reply: FastifyReply
     }
 
     const episodes = await episodeRepository.findEpisodesBySeriesId(seriesId);
+    const userId = Number((req as any).user?.id);
+    const decorated = await decorateEpisodesForViewer(
+      episodes,
+      Number.isInteger(userId) && userId > 0 ? userId : undefined,
+    );
 
     return reply.send({
       success: true,
-      data: episodes,
+      data: decorated,
     });
   } catch (error: any) {
     console.error('[Series Controller] Error getting episodes:', error.message);

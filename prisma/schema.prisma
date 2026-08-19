@@ -32,6 +32,8 @@ model User {
   comments        Comment[]
   commentLikes    CommentLike[]
   downloads       UserDownload[]
+  episodeUnlocks  EpisodeUnlock[]
+  retentionEvents WatchRetentionEvent[]
 }
 
 // ============================================
@@ -52,6 +54,8 @@ model Series {
   trendingScore   Float     @default(0)
   status          String    @default("DRAFT") // DRAFT, PUBLISHED, ARCHIVED
   isAiGenerated   Boolean   @default(false)
+  freeEpisodeCount Int      @default(0) // 0 = derive from season architecture
+  episodeUnlockCost Int     @default(1)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -60,6 +64,8 @@ model Series {
   productionPlan  SeriesProductionPlan?
   referenceAssets SeriesReferenceAsset[]
   storyPoints     SeriesStoryPoint[]
+  episodeUnlocks  EpisodeUnlock[]
+  retentionEvents WatchRetentionEvent[]
 
   @@index([genre])
   @@index([trendingScore])
@@ -90,6 +96,8 @@ model Episode {
   watchHistory    WatchHistory[]
   likes           EpisodeLike[]
   comments        Comment[]
+  unlocks         EpisodeUnlock[]
+  retentionEvents WatchRetentionEvent[]
 
   @@unique([seriesId, episodeNumber])
   @@index([views])
@@ -167,6 +175,41 @@ model UserPreferences {
   updatedAt   DateTime  @updatedAt
 
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EpisodeUnlock {
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  episodeId     Int
+  seriesId      Int
+  creditsSpent  Int       @default(1)
+  createdAt     DateTime  @default(now())
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  episode       Episode   @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  series        Series    @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, episodeId])
+  @@index([userId, seriesId])
+  @@index([episodeId])
+}
+
+model WatchRetentionEvent {
+  id               Int       @id @default(autoincrement())
+  userId           Int
+  episodeId        Int
+  seriesId         Int
+  event            String
+  positionSeconds  Int       @default(0)
+  createdAt        DateTime  @default(now())
+
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  episode          Episode   @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  series           Series    @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  @@index([episodeId, event, createdAt])
+  @@index([userId, createdAt])
+  @@index([seriesId, event, createdAt])
 }
 
 model WatchHistory {

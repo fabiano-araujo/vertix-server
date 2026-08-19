@@ -1,23 +1,25 @@
 import { FastifyInstance } from 'fastify';
 import feedController from '../controllers/feed.controller';
-import { verifyToken } from '../middlewares/auth';
+import { optionalAuth, verifyToken } from '../middlewares/auth';
 
 export default async function feedRoutes(fastify: FastifyInstance) {
   // Public routes
-  fastify.get('/feed/trending', feedController.getTrendingFeed);
-  fastify.get('/feed/new', feedController.getNewReleasesFeed);
-  fastify.get('/feed/genre/:genre', feedController.getGenreFeed);
+  fastify.get('/feed/trending', {
+    preHandler: [optionalAuth],
+    handler: feedController.getTrendingFeed,
+  });
+  fastify.get('/feed/new', {
+    preHandler: [optionalAuth],
+    handler: feedController.getNewReleasesFeed,
+  });
+  fastify.get('/feed/genre/:genre', {
+    preHandler: [optionalAuth],
+    handler: feedController.getGenreFeed,
+  });
 
   // Routes that work with optional auth
   fastify.get('/feed/home', {
-    preHandler: async (req, reply) => {
-      // Optional auth - don't fail if not authenticated
-      try {
-        await verifyToken(req, reply);
-      } catch {
-        // Continue without auth
-      }
-    },
+    preHandler: [optionalAuth],
     handler: feedController.getHomeCarousels,
   });
 

@@ -2,6 +2,17 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import * as episodeRepository from '../repositories/episode.repository';
 import * as watchHistoryRepository from '../repositories/watch-history.repository';
 import recommendationService from '../services/recommendation.service';
+import {
+  decorateEpisodeForViewer,
+  isRetentionEvent,
+  recordRetentionEvent,
+  unlockEpisodeForUser,
+} from '../services/episode-paywall.service';
+
+const viewerId = (req: FastifyRequest): number | undefined => {
+  const id = Number((req as any).user?.id);
+  return Number.isInteger(id) && id > 0 ? id : undefined;
+};
 
 // ============================================
 // GET EPISODE
@@ -29,20 +40,22 @@ export const getEpisode = async (req: FastifyRequest, reply: FastifyReply) => {
     }
 
     // Check if user has liked (if authenticated)
-    const user = (req as any).user;
+    const userId = viewerId(req);
     let isLiked = false;
     let watchProgress = 0;
 
-    if (user?.id) {
-      isLiked = await episodeRepository.hasUserLiked(episodeId, user.id);
-      const history = await watchHistoryRepository.getWatchProgress(user.id, episodeId);
+    if (userId) {
+      isLiked = await episodeRepository.hasUserLiked(episodeId, userId);
+      const history = await watchHistoryRepository.getWatchProgress(userId, episodeId);
       watchProgress = history?.progress || 0;
     }
+
+    const decorated = await decorateEpisodeForViewer(episode, userId);
 
     return reply.send({
       success: true,
       data: {
-        ...episode,
+        ...decorated,
         isLiked,
         watchProgress,
       },
@@ -379,15 +392,131 @@ export const getNextEpisode = async (req: FastifyRequest, reply: FastifyReply) =
       currentEpisode.episodeNumber
     );
 
+    const decorated = nextEpisode
+      ? await decorateEpisodeForViewer(nextEpisode, viewerId(req))
+      : null;
+
     return reply.send({
       success: true,
-      data: nextEpisode,
+      data: decorated,
     });
   } catch (error: any) {
     console.error('[Episode Controller] Error getting next episode:', error.message);
     return reply.code(500).send({
       success: false,
       message: 'Erro ao buscar proximo episodio',
+    });
+  }
+};
+
+export const unlockEpisode = async (req: FastifyRequest, reply: FastifyReply) => {
+  try {
+    const { id } = req.params as { id: string };
+    const episodeId = parseInt(id);
+    const userId = viewerId(req);
+
+    if (isNaN(episodeId)) {
+      return reply.code(400).send({
+        success: false,
+        message: 'ID invalido',
+      });
+    }
+    if (!userId) {
+      return reply.code(401).send({
+        success: false,
+        message: 'Entre para desbloquear este episodio',
+      });
+    }
+
+    const episode = await episodeRepository.findEpisodeById(episodeId);
+    if (!episode) {
+      return reply.code(404).send({
+        success: false,
+        message: 'Episodio nao encontrado',
+      });
+    }
+
+    const result = await unlockEpisodeForUser({ userId, episode });
+    if (!result.ok) {
+      return reply.code(result.status).send({
+        success: false,
+        message: result.message,
+        reason: result.reason,
+        data: {
+          availableCredits: result.availableCredits,
+          unlockCost: result.unlockCost,
+        },
+      });
+    }
+
+    const decorated = await decorateEpisodeForViewer(episode, userId);
+    return reply.send({
+      success: true,
+      message: result.alreadyUnlocked ? 'Episodio ja desbloqueado' : 'Episodio desbloqueado',
+      data: {
+        ...decorated,
+        creditsSpent: result.creditsSpent,
+        availableCredits: result.availableCredits,
+      },
+    });
+  } catch (error: any) {
+    console.error('[Episode Controller] Error unlocking episode:', error.message);
+    return reply.code(500).send({
+      success: false,
+      message: 'Erro ao desbloquear episodio',
+    });
+  }
+};
+
+export const recordRetention = async (req: FastifyRequest, reply: FastifyReply) => {
+  try {
+    const { id } = req.params as { id: string };
+    const episodeId = parseInt(id);
+    const userId = viewerId(req);
+    const body = req.body as any;
+    const event = body?.event;
+
+    if (isNaN(episodeId)) {
+      return reply.code(400).send({
+        success: false,
+        message: 'ID invalido',
+      });
+    }
+    if (!userId) {
+      return reply.code(401).send({
+        success: false,
+        message: 'Autenticacao necessaria',
+      });
+    }
+    if (!isRetentionEvent(event)) {
+      return reply.code(400).send({
+        success: false,
+        message: 'Evento de retencao invalido',
+      });
+    }
+
+    const episode = await episodeRepository.findEpisodeById(episodeId);
+    if (!episode) {
+      return reply.code(404).send({
+        success: false,
+        message: 'Episodio nao encontrado',
+      });
+    }
+
+    await recordRetentionEvent({
+      userId,
+      episodeId,
+      seriesId: episode.seriesId,
+      event,
+      positionSeconds: Number(body?.positionSeconds || 0),
+    });
+
+    return reply.send({ success: true });
+  } catch (error: any) {
+    console.error('[Episode Controller] Error recording retention:', error.message);
+    return reply.code(500).send({
+      success: false,
+      message: 'Erro ao registrar retencao',
     });
   }
 };
@@ -402,4 +531,6 @@ export default {
   updateProgress,
   recordShare,
   getNextEpisode,
+  unlockEpisode,
+  recordRetention,
 };

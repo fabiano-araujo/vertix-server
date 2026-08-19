@@ -12,6 +12,8 @@ export interface CreateSeriesData {
   genre: string;
   tags?: string;
   totalEpisodes?: number;
+  freeEpisodeCount?: number;
+  episodeUnlockCost?: number;
   createdById: number;
   status?: string;
   isAiGenerated?: boolean;
@@ -25,6 +27,8 @@ export interface UpdateSeriesData {
   genre?: string;
   tags?: string;
   totalEpisodes?: number;
+  freeEpisodeCount?: number;
+  episodeUnlockCost?: number;
   status?: string;
   hypeScore?: number;
   trendingScore?: number;
@@ -54,6 +58,8 @@ export const createSeries = async (data: CreateSeriesData) => {
       genre: data.genre,
       tags: data.tags,
       totalEpisodes: data.totalEpisodes || 0,
+      freeEpisodeCount: data.freeEpisodeCount || 0,
+      episodeUnlockCost: data.episodeUnlockCost || 1,
       createdById: data.createdById,
       status: data.status || 'DRAFT',
       isAiGenerated: data.isAiGenerated || false,
