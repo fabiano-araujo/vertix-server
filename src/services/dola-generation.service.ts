@@ -344,6 +344,9 @@ const runWithProfile = async (params: {
     output: params.outputFile,
     meta_output: path.join(params.workDir, `meta-profile-${params.profile}.json`),
     error_screenshot: path.join(params.workDir, `error-profile-${params.profile}.png`),
+    browser_close_delay_seconds: Number(
+      process.env.DOLA_BROWSER_CLOSE_DELAY_SECONDS || 30,
+    ),
   };
   fs.writeFileSync(jobFile, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
   return waitForRunner(
