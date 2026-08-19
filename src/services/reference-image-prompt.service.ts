@@ -96,7 +96,10 @@ const suppliedPromptLooksCanonical = (prompt: string): boolean => {
     || normalized.includes('create one horizontal 3:2 identity sheet')
     || normalized.includes('create a believable real location-scout photograph')
     || normalized.includes('believable real location-scout photograph for')
-    || normalized.includes('photorealistic canonical prop continuity')
+    || (
+      normalized.includes('photorealistic canonical prop continuity')
+      && normalized.includes('white seamless studio cyclorama')
+    )
   );
 };
 
@@ -232,8 +235,12 @@ const coverTypographySystems = [
 
 const faceAttractivenessRegisters = [
   {
+    id: 'protagonist_camera',
+    direction: 'A PROTAGONIST we follow, not a catalog face we consume. Camera-ready and attractive on a 9:16 phone, but beauty is secondary to agency: this person looks mid-decision, with a specific thought behind the eyes and a body about to act. Identification first, admiration second. Still a distinct bone structure — never a cloned runway/Instagram model, never a vacant gata/galã stare. Skin healthy and camera-ready; no tragic-scar makeup, no orphan-sad eyes, no fashion-campaign pose.',
+  },
+  {
     id: 'lead_camera_beauty',
-    direction: 'A vertical-drama GALÃ / GATA: extremely attractive on a 9:16 phone screen, the kind of face and body a DramaBox/ReelShort lead is cast for. High-camera beauty, healthy glow, magnetic presence. Attractiveness comes from THIS specific bone structure, not from a cloned runway/Instagram model. Still very pretty or handsome — just a different beautiful person from every other series. Skin even and camera-ready, restrained pores, no fatigue, no scars, no crooked teeth, no broken nose, no receding chin. Think leading actor, not catalog extra and not a beauty-filter twin.',
+    direction: 'A vertical-drama GALÃ / GATA used for a romantic cover face or opposing force: extremely attractive on a 9:16 phone, magnetic, fitness-capable. Attractiveness comes from THIS specific bone structure, not from a cloned runway/Instagram model. They still want something of their own — not a smolder-only poster. Skin even and camera-ready, no fatigue, no scars, no crooked teeth, no broken nose, no receding chin.',
   },
   {
     id: 'attractive_distinctive',
@@ -258,7 +265,7 @@ const faceAttractivenessRegisters = [
 ] as const;
 
 const supportingAttractivenessRegisters = faceAttractivenessRegisters.filter(
-  (item) => item.id !== 'lead_camera_beauty',
+  (item) => item.id !== 'lead_camera_beauty' && item.id !== 'protagonist_camera',
 );
 
 const leadFaceGeometries = [
@@ -364,27 +371,27 @@ const leadBodies = [
 const cinematicPresences = [
   {
     id: 'ice-glass',
-    direction: 'ICE-GLASS presence, the method of prestige K-drama and boardroom thrillers: stillness, high grooming, cool appraisal in the eyes, almost no wasted motion. Extremely attractive. Power happens in the face before dialogue. Never a copied celebrity.',
+    direction: 'ICE-GLASS temperature: stillness and cool appraisal in the eyes. A way of paying attention, not an ice-CEO costume. Extremely attractive. Never a copied celebrity, never black-suit smolder by default.',
   },
   {
     id: 'sun-heat',
-    direction: 'SUN-HEAT presence, the method of Latin and Mediterranean romantic leads: warm skin, strong brows, a mouth that reads on a phone, heat in the gaze. Telenovela-lead magnetism without cloning any star.',
+    direction: 'SUN-HEAT temperature: warm skin, strong brows, heat in the gaze. Romantic-lead magnetism without telenovela-god cosplay and without cloning any star.',
   },
   {
     id: 'quiet-old-money',
-    direction: 'QUIET OLD-MONEY presence, the method of prestige family sagas: unhurried face, understated grooming, wealth in posture and fabric rather than logos. Attractive because they look born to rooms other people enter nervously.',
+    direction: 'QUIET OLD-MONEY temperature: unhurried face, wealth in posture and fabric rather than logos. Do not turn this into a generic billionaire-in-navy poster.',
   },
   {
     id: 'street-voltage',
-    direction: 'STREET-VOLTAGE presence, the method of youthful streaming leads: slightly lived hair, alert eyes, a body that looks mid-decision. Sexy because they are awake, not because they are a catalog mannequin.',
+    direction: 'STREET-VOLTAGE temperature: alert eyes, a body that looks mid-decision. Sexy because they are awake, not because they are a catalog mannequin or a leather-jacket cliché.',
   },
   {
     id: 'regal-bone',
-    direction: 'REGAL-BONE presence, the method of diaspora prestige leads: sculpted cheekbones, proud carriage, a face that holds a huge close-up. Beauty reads as lineage and gravity, never as a beauty-filter oval.',
+    direction: 'REGAL-BONE temperature: sculpted cheekbones, proud carriage. Beauty as gravity, never royal-destiny cosplay or a beauty-filter oval.',
   },
   {
     id: 'soft-devastating',
-    direction: 'SOFT-DEVASTATING presence, the method of underestimated romantic leads: gentler features that become lethal in a held stare. The viewer should want to protect them and fear them in the same close-up.',
+    direction: 'SOFT-DEVASTATING temperature: gentler features that become serious in a held stare. Underestimated, not damsel, not chosen-one glow.',
   },
 ] as const;
 
@@ -556,6 +563,29 @@ const leadContradictions = [
   {
     id: 'visible-pretty-ears',
     direction: 'ears that sit slightly high and are often visible — a specific pretty silhouette, not jug ears',
+  },
+] as const;
+
+const protagonistTells = [
+  {
+    id: 'mid-decision',
+    direction: 'the face is mid-decision: eyes tracking a problem just off-lens, not posing for a portrait',
+  },
+  {
+    id: 'working-weight',
+    direction: 'posture of someone who already had a real day: weight on one foot, shoulders useful not decorative, clothes sitting like they were put on for a job',
+  },
+  {
+    id: 'bitten-reply',
+    direction: 'mouth slightly set as if they almost answered and did not. A private cost, not tragedy makeup and not tears',
+  },
+  {
+    id: 'quiet-attention',
+    direction: 'they are listening hard. Brow barely engaged, gaze specific. The viewer should want to know what they noticed',
+  },
+  {
+    id: 'forward-agency',
+    direction: 'a ready body, about to move, not a mannequin. Chin neither heroic-thrust nor lowered-victim',
   },
 ] as const;
 
@@ -946,16 +976,26 @@ const requestedAttractivenessRegister = (
   return undefined;
 };
 
-const isLeadCharacter = (input: ReferenceImagePromptInput): boolean => {
+const isLeadCharacter = (input: ReferenceImagePromptInput): boolean =>
+  isProtagonistCharacter(input) || isCoverLeadCharacter(input);
+
+const leadRoleText = (input: ReferenceImagePromptInput): string => {
   const role = readableValue(metadataValue(input.metadata || {}, [
     'role',
     'dramatic_function',
     'dramaticFunction',
   ]));
-  const text = `${role} ${input.category || ''} ${characterFacts(input)}`
+  return `${role} ${input.category || ''} ${characterFacts(input)}`
     .toLocaleLowerCase('pt-BR');
+};
+
+const isProtagonistCharacter = (input: ReferenceImagePromptInput): boolean =>
+  /\b(protagonista|protagonist|hero[ií]na)\b/i.test(leadRoleText(input));
+
+const isCoverLeadCharacter = (input: ReferenceImagePromptInput): boolean => {
+  const text = leadRoleText(input);
   return (
-    /\b(protagonista|protagonist|hero[ií]na|for[cç]a oposta|opposing.?force|antagonista|antagonist|interesse rom[aâ]ntico|par rom[aâ]ntico|love interest)\b/i
+    /\b(for[cç]a oposta|opposing.?force|antagonista|antagonist|interesse rom[aâ]ntico|par rom[aâ]ntico|love interest)\b/i
       .test(text)
     || /OPPOSING_FORCE/.test(cleanText(input.category, 120).toUpperCase())
   );
@@ -969,6 +1009,7 @@ const compileFaceIdentityLock = (
     `${cleanText(input.label, 180).toLocaleLowerCase('pt-BR')}|${facts.toLocaleLowerCase('pt-BR')}`,
   );
   const lead = isLeadCharacter(input);
+  const protagonist = isProtagonistCharacter(input);
   const presentation = inferPresentation(input);
   const requestedRegister = requestedAttractivenessRegister(facts);
   const useLeadBeauty = lead
@@ -977,8 +1018,14 @@ const compileFaceIdentityLock = (
   const storyAsWritten = faceAttractivenessRegisters.find(
     (item) => item.id === 'story_as_written',
   ) || faceAttractivenessRegisters[faceAttractivenessRegisters.length - 1];
+  const protagonistRegister = faceAttractivenessRegisters.find(
+    (item) => item.id === 'protagonist_camera',
+  ) || faceAttractivenessRegisters[0];
+  const coverRegister = faceAttractivenessRegisters.find(
+    (item) => item.id === 'lead_camera_beauty',
+  ) || faceAttractivenessRegisters[1];
   const attractiveness = useLeadBeauty
-    ? faceAttractivenessRegisters[0]
+    ? (protagonist ? protagonistRegister : coverRegister)
     : requestedRegister
       ? faceAttractivenessRegisters.find((item) => item.id === requestedRegister)
         || storyAsWritten
@@ -1003,6 +1050,7 @@ const compileFaceIdentityLock = (
   const wardrobe = pickHashed(wardrobeLanes, seed, 23);
   const hook = pickHashed(phoneScreenHooks, seed, 29);
   const contradiction = pickHashed(leadContradictions, seed, 31);
+  const tell = pickHashed(protagonistTells, seed, 37);
   const originLine = preserveOrigin
     ? 'ORIGIN LOCK: keep the country and visible ancestry already named in APPROVED CHARACTER FACTS. The person must look like they come from that country. Hair color from any look package must stay plausible for that origin.'
     : `ORIGIN LOCK — country: ${origin.country}. Visible ancestry to preserve: ${origin.direction} Hair color from any look package must stay plausible for this origin.`;
@@ -1022,13 +1070,20 @@ const compileFaceIdentityLock = (
     : `WARDROBE LANE — ${wardrobe.id}: ${wardrobe.direction}. Recurring clothes stay in this lane so the ensemble does not dress as clones.`;
   const hookLine = `PHONE-SCREEN HOOK — ${hook.id}: ${hook.direction}. This must be readable on a 9:16 phone, larger than a hidden mole.`;
   const styleLine = useLeadBeauty
-    ? `LEAD LOOK PACKAGE — a galã whose look must not clone another series: hair color: ${hasNamedHairColor(facts) ? 'keep the hair color already named in APPROVED CHARACTER FACTS' : hairColor.direction}; body: ${hasNamedBody(facts) ? 'keep the body already named' : body.direction}.`
+    ? protagonist
+      ? `PROTAGONIST LOOK — attractive enough for a phone close-up, but this is the person we FOLLOW. Hair color: ${hasNamedHairColor(facts) ? 'keep the hair color already named in APPROVED CHARACTER FACTS' : hairColor.direction}; body: ${hasNamedBody(facts) ? 'keep the body already named' : body.direction}. One private tell only — ${tell.id}: ${tell.direction}.`
+      : `LEAD LOOK PACKAGE — a galã whose look must not clone another series: hair color: ${hasNamedHairColor(facts) ? 'keep the hair color already named in APPROVED CHARACTER FACTS' : hairColor.direction}; body: ${hasNamedBody(facts) ? 'keep the body already named' : body.direction}.`
     : 'SUPPORTING DISTINCTIVENESS: do not upgrade this person into a protagonist-galã unless the facts already demand it, but they MUST still be a specific silhouette + wardrobe lane so they cannot be mistaken for the leads in a freeze-frame.';
   const contradictionLine = useLeadBeauty
-    ? `LEAD CONTRADICTION — ${contradiction.id}: ${contradiction.direction}. Famous-series method: beauty plus one specific break, so they are not a catalog model.`
+    ? `LEAD CONTRADICTION — ${contradiction.id}: ${contradiction.direction}. One specific break is enough. Do not stack extra quirks, scars or destiny marks.`
+    : '';
+  const antiClichéLine = protagonist
+    ? 'PROTAGONIST ANTI-CLICHÉ: do NOT use vacant model stare, fashion-hip pose, looking into the lens like a catalog, chosen-one halo light, tragic facial scar as personality, wind-machine hair, ice-CEO default smolder, orphan-sad glistening eyes, superhero jaw thrust, or a pile of quirks. One small tell is enough. They are the subject of the story, not a product.'
     : '';
   const samefaceLine = useLeadBeauty
-    ? 'ANTI-SAMEFACE: This is a vertical-drama GALÃ: extremely attractive on a phone, like a ReelShort/DramaBox lead, but NOT the same cloned runway/Instagram model used in every series. Identity comes from bone structure, eye spacing, nose silhouette, hair architecture, wardrobe lane and the contradiction. Do NOT add scars, crooked teeth, dark circles, a broken nose, receding chin, gummy smile or fatigue unless already named. Keep only a barely-visible 1-2 mm left-right asymmetry. Skin: healthy, glowing, camera-ready — not airbrushed plastic. Different series must produce different beautiful people, not the same face with a new hair dye.'
+    ? protagonist
+      ? 'ANTI-SAMEFACE: Camera-beautiful, but identity comes from bone structure, a thinking gaze, hair architecture and the single protagonist tell. Do NOT add scars, crooked teeth, dark circles, a broken nose, receding chin, gummy smile or fatigue unless already named. Keep only a barely-visible 1-2 mm left-right asymmetry. Skin: healthy, camera-ready — not airbrushed plastic.'
+      : 'ANTI-SAMEFACE: This is a vertical-drama GALÃ: extremely attractive on a phone, like a ReelShort/DramaBox cover face, but NOT the same cloned runway/Instagram model used in every series. Identity comes from bone structure, eye spacing, nose silhouette, hair architecture, wardrobe lane and the contradiction. Do NOT add scars, crooked teeth, dark circles, a broken nose, receding chin, gummy smile or fatigue unless already named. Keep only a barely-visible 1-2 mm left-right asymmetry. Skin: healthy, glowing, camera-ready — not airbrushed plastic. Different series must produce different beautiful people, not the same face with a new hair dye.'
     : 'ANTI-SAMEFACE: Do not keep a generic oval face and only change hair color, eye color or clothes. Follow the attractiveness register above. Bone structure, silhouette, wardrobe lane and hook must make this character distinguishable from the leads of this series.';
 
   return {
@@ -1046,6 +1101,7 @@ const compileFaceIdentityLock = (
       hookLine,
       styleLine,
       contradictionLine,
+      antiClichéLine,
       samefaceLine,
     ].filter(Boolean).join('\n'),
     metadata: {
@@ -1066,6 +1122,9 @@ const compileFaceIdentityLock = (
           leadHairTextureVariant: hasNamedHairTexture(facts) ? 'facts-owned' : silhouette.id,
           leadBodyVariant: hasNamedBody(facts) ? 'facts-owned' : body.id,
           leadContradictionVariant: contradiction.id,
+          ...(protagonist
+            ? { protagonistTellVariant: tell.id }
+            : {}),
         }
         : {}),
     },
@@ -1458,13 +1517,17 @@ const compilePropPrompt = (input: ReferenceImagePromptInput): string => {
 
   return `Create one landscape 3:2 photorealistic canonical prop continuity
 photograph for ${label}, captured as a real physical object rather than a CGI
-product render. APPROVED PROP FACTS — PRESERVE EXACTLY: ${facts}
+product render, isolated on a pure white seamless studio cyclorama (#FFFFFF).
+APPROVED PROP FACTS — PRESERVE EXACTLY: ${facts}
 Its story function is ${storyFunction}. Preserve exact silhouette, proportions,
 colors, construction, controls, seams, closures, distinctive marks and materials:
-${materials}. Show the complete object in one dominant three-quarter view with a
-neutral functional placement that makes scale and contact believable. Use a
+${materials}. Show the complete object in one dominant three-quarter view,
+resting on the white sweep with a single soft contact shadow. No environment,
+city, room, landscape, furniture, architecture, location sheet or scenic
+background may appear — this is not a character sheet and not a location-scout
+photograph. The background must stay empty white in every corner. Use a
 plausible 50-85mm product-documentation perspective, natural exposure and one
-physically motivated soft key with simple environmental bounce. Render
+physically motivated soft studio key with simple white bounce. Render
 material-specific roughness, fine wear, fingerprints, scuffs, dust in creases,
 edge wear and manufacturing tolerances only where appropriate. Keep every story-
 critical detail readable without invented labels or decorations. Restrained

@@ -75,9 +75,28 @@ test('prop prompt preserves its function and physical material response', () => 
 
   assert.equal(result.visualReferenceMode, 'ultra_photoreal_prop');
   assert.match(result.prompt, /photorealistic canonical prop continuity/i);
+  assert.match(result.prompt, /white seamless studio cyclorama/i);
+  assert.match(result.prompt, /#FFFFFF/);
+  assert.match(result.prompt, /No environment,\s+city/i);
   assert.match(result.prompt, /símbolo recorrente de status/);
   assert.match(result.prompt, /aço escovado/);
   assert.match(result.prompt, /real physical object rather than a CGI\s+product render/i);
+  assert.doesNotMatch(result.prompt, /simple environmental bounce/);
+});
+
+test('legacy prop prompt without white studio ground is recompiled', () => {
+  const result = compileReferenceImagePrompt({
+    label: 'Relógio de Rafael',
+    category: 'PROP_MASTER',
+    description: 'Relógio de pulso de luxo usado sempre no pulso direito.',
+    prompt: `Create one landscape 3:2 photorealistic canonical prop continuity
+photograph for Relógio de Rafael, captured as a real physical object rather than a CGI
+product render. APPROVED PROP FACTS — PRESERVE EXACTLY: Relógio de pulso.
+Show the complete object with simple environmental bounce.`,
+  });
+
+  assert.match(result.prompt, /white seamless studio cyclorama/i);
+  assert.doesNotMatch(result.prompt, /simple environmental bounce/);
 });
 
 test('app cover uses premium portrait key art and embeds the exact series title', () => {
@@ -215,7 +234,7 @@ test('named craniofacial facts are preserved instead of a hashed geometry', () =
   assert.match(result.prompt, /rosto em formato de coração/i);
 });
 
-test('a protagonist defaults to galã camera-beauty with a varied look package', () => {
+test('a protagonist defaults to protagonist-camera, not catalog beauty', () => {
   const result = compileReferenceImagePrompt({
     label: 'Lívia Menezes',
     category: 'CHARACTER_MASTER',
@@ -223,15 +242,18 @@ test('a protagonist defaults to galã camera-beauty with a varied look package',
     metadata: { role: 'Protagonista' },
   });
 
-  assert.equal(result.promptMetadata?.faceAttractivenessRegister, 'lead_camera_beauty');
+  assert.equal(result.promptMetadata?.faceAttractivenessRegister, 'protagonist_camera');
   assert.equal(result.promptMetadata?.faceCastBand, 'lead');
-  assert.match(result.prompt, /GALÃ/);
-  assert.match(result.prompt, /LEAD LOOK PACKAGE/);
+  assert.match(result.prompt, /PROTAGONIST LOOK/);
+  assert.match(result.prompt, /PROTAGONIST ANTI-CLICHÉ/);
+  assert.match(result.prompt, /mid-decision|working-weight|bitten-reply|quiet-attention|forward-agency/);
   assert.ok(result.promptMetadata?.leadHairColorVariant);
   assert.ok(result.promptMetadata?.leadHairTextureVariant);
   assert.ok(result.promptMetadata?.leadBodyVariant);
+  assert.ok(result.promptMetadata?.protagonistTellVariant);
   assert.doesNotMatch(result.prompt, /chipped upper-left incisor/);
   assert.doesNotMatch(result.prompt, /scar breaking the right eyebrow/);
+  assert.match(result.prompt, /do NOT use vacant model stare/);
 });
 
 test('two leads receive different hair or body packages', () => {
@@ -321,6 +343,8 @@ test('an opposing force also uses lead camera beauty', () => {
 
   assert.equal(result.promptMetadata?.faceAttractivenessRegister, 'lead_camera_beauty');
   assert.equal(result.promptMetadata?.faceCastBand, 'lead');
+  assert.match(result.prompt, /LEAD LOOK PACKAGE/);
+  assert.doesNotMatch(result.prompt, /PROTAGONIST ANTI-CLICHÉ/);
 });
 
 test('two leads still receive different craniofacial packages', () => {
