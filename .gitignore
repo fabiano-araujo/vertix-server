@@ -6,3 +6,4 @@ dist
 *.err.log
 *.out.log
 public/openrouter-video-runs/
+public/dola-runs/

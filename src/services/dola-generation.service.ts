@@ -69,8 +69,28 @@ const MAX_PROFILE_ATTEMPTS = Number(process.env.DOLA_MAX_PROFILE_ATTEMPTS || 3);
 const jobs = new Map<string, DolaJob>();
 const runners = new Map<string, ChildProcess>();
 
+const looksLikeJsonBlob = (text: string) =>
+  /^\s*\{/.test(text) || /"event"\s*:/.test(text);
+
+const extractProviderSentence = (raw: string) => {
+  const normalized = String(raw || '').replace(/\s+/g, ' ').trim();
+  const patterns = [
+    /Para proteger os direitos de imagem[\s\S]{0,400}?baseado em texto\.?/i,
+    /Para proteger os direitos autorais[\s\S]{0,400}?(?:tente novamente|try again)\.?/i,
+    /To protect image rights[\s\S]{0,400}?(?:text-based video|based on text)\.?/i,
+    /To protect copyright[\s\S]{0,400}?(?:try again|edit the prompt)[^.]*\.?/i,
+  ];
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern);
+    if (match) return match[0].replace(/\s+/g, ' ').trim();
+  }
+  return '';
+};
+
 export const describeDolaError = (raw: string) => {
   const text = String(raw || '').trim();
+  const providerSentence = extractProviderSentence(text);
+  if (providerSentence) return providerSentence;
   if (/interrompida|cancelled by user/i.test(text)) {
     return 'Geração interrompida.';
   }
@@ -90,7 +110,7 @@ export const describeDolaError = (raw: string) => {
     return 'O Dola pediu para confirmar a duração. Gere de novo com 5s ou 10s.';
   }
   if (/DOLA_TERMINAL_REJECTION|terminal_rejection/i.test(text)) {
-    return 'O Dola recusou exibir o vídeo (copyright ou áudio). Ajuste a cena e tente de novo.';
+    return 'O Dola recusou a cena por direitos de imagem, copyright ou áudio. Ajuste as referências ou o prompt.';
   }
   if (/DOLA_UNRECOGNIZED_RESPONSE|unrecognized_provider_response/i.test(text)) {
     return 'O Dola não confirmou a geração. Tente de novo.';
@@ -98,14 +118,20 @@ export const describeDolaError = (raw: string) => {
   if (/DOLA_CONFIRMATION_UNRESOLVED|confirmation_unresolved/i.test(text)) {
     return 'O Dola não iniciou a geração depois da confirmação. Tente de novo.';
   }
-  if (/Timed out after/i.test(text)) {
+  if (/DOLA_TIMEOUT|Timed out after/i.test(text)) {
     return 'O Dola estourou o tempo de espera. Tente gerar de novo.';
   }
   if (/ECONNREFUSED|não está no ar/i.test(text)) {
     return 'O gerador Dola local não está no ar. Rode yarn dola:serve na pasta server/.';
   }
-  const cleaned = text.replace(/^profile-\d+:\s*/i, '').trim();
-  return cleaned || 'Falha ao gerar no Dola.';
+  const cleaned = text
+    .replace(/^profile-\d+:\s*/i, '')
+    .replace(/^DOLA_[A-Z0-9_]+:\s*/i, '')
+    .trim();
+  if (!cleaned || looksLikeJsonBlob(cleaned)) {
+    return 'Falha ao gerar no Dola.';
+  }
+  return cleaned;
 };
 
 const isCancelled = (job: DolaJob) =>
@@ -264,7 +290,13 @@ const materializeReferences = async (references: DolaReferenceInput[], directory
   return files;
 };
 
-const waitForRunner = (jobId: string, command: string, args: string[], cwd: string) =>
+const waitForRunner = (
+  jobId: string,
+  command: string,
+  args: string[],
+  cwd: string,
+  onEvent?: (event: Record<string, unknown>) => void,
+) =>
   new Promise<{ code: number; stdout: string; stderr: string }>((resolve, reject) => {
     const child = spawn(command, args, {
       cwd,
@@ -274,8 +306,22 @@ const waitForRunner = (jobId: string, command: string, args: string[], cwd: stri
     runners.set(jobId, child);
     let stdout = '';
     let stderr = '';
+    let lineBuffer = '';
     child.stdout?.on('data', (chunk) => {
-      stdout += chunk.toString();
+      const text = chunk.toString();
+      stdout += text;
+      lineBuffer += text;
+      const lines = lineBuffer.split(/\r?\n/);
+      lineBuffer = lines.pop() || '';
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('{')) continue;
+        try {
+          onEvent?.(JSON.parse(trimmed) as Record<string, unknown>);
+        } catch {
+          continue;
+        }
+      }
     });
     child.stderr?.on('data', (chunk) => {
       stderr += chunk.toString();
@@ -290,21 +336,67 @@ const waitForRunner = (jobId: string, command: string, args: string[], cwd: stri
     });
   });
 
-const parseRunnerPayload = (stdout: string) => {
-  const lines = stdout
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .reverse();
-  for (const line of lines) {
-    if (!line.startsWith('{')) continue;
+const parseJsonLines = (stdout: string) => {
+  const rows: Record<string, any>[] = [];
+  for (const line of stdout.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('{')) continue;
     try {
-      return JSON.parse(line);
+      rows.push(JSON.parse(trimmed));
     } catch {
       continue;
     }
   }
+  return rows;
+};
+
+const parseRunnerPayload = (stdout: string) => {
+  const rows = parseJsonLines(stdout);
+  const failure = [...rows].reverse().find((row) => row && row.ok === false);
+  if (failure) return failure;
+  const recorded = [...rows].reverse().find((row) => row && (row.recorded || row.message));
+  if (recorded) return recorded;
+  return rows.at(-1) || null;
+};
+
+const humanizeRunnerEvent = (event: Record<string, any>) => {
+  const message = String(event?.message || '').trim();
+  if (message && !looksLikeJsonBlob(message) && (event.ok === false || event.event === 'provider_error')) {
+    return message;
+  }
+  const name = String(event?.event || '');
+  const value = String(event?.value || '').trim();
+  const control = String(event?.control || '').trim();
+  if (name === 'provider_control_confirmed') {
+    if (/duration/i.test(control)) return `Duração ${value} confirmada no Dola`;
+    if (/aspect/i.test(control)) return `Proporção ${value} confirmada no Dola`;
+    if (/credit/i.test(control)) return `Perfil ${value} confirmado no Dola`;
+    return `${control} ${value} confirmado no Dola`.trim();
+  }
+  if (name === 'references_ready') {
+    return `${Number(event.count || 0)} referências prontas no Dola`;
+  }
+  if (name === 'references_verified_before_send') {
+    return 'Referências conferidas · enviando a cena...';
+  }
+  if (name === 'dola_google_reauthenticated' || name === 'provider_login_completed') {
+    return 'Sessão do Dola revalidada.';
+  }
   return null;
+};
+
+const runnerFailureMessage = (
+  result: { code: number; stdout: string; stderr: string },
+  payload: Record<string, any> | null,
+) => {
+  const fromPayload = String(payload?.message || payload?.provider_message || '').trim();
+  if (fromPayload && !looksLikeJsonBlob(fromPayload)) return fromPayload;
+  const stderr = String(result.stderr || '');
+  const codeLine = stderr.match(/DOLA_[A-Z0-9_]+[^\n]*/);
+  if (codeLine?.[0]) return codeLine[0];
+  const recorded = String(payload?.recorded || '').trim();
+  if (recorded && !looksLikeJsonBlob(recorded)) return recorded;
+  return '';
 };
 
 const runWithProfile = async (params: {
@@ -319,6 +411,7 @@ const runWithProfile = async (params: {
   aspectRatio: string;
   model: string;
   creditProfile: string;
+  onEvent?: (event: Record<string, unknown>) => void;
 }) => {
   const jobFile = path.join(params.workDir, `job-profile-${params.profile}.json`);
   const payload = {
@@ -354,6 +447,7 @@ const runWithProfile = async (params: {
     process.execPath,
     [DEFAULT_BROWSER_RUNNER, '--job', jobFile],
     params.workDir,
+    params.onEvent,
   );
 };
 
@@ -419,6 +513,52 @@ const executeJob = async (job: DolaJob, input: CreateDolaJobInput) => {
       aspectRatio: String(input.aspectRatio || '9:16'),
       model: String(input.model || DEFAULT_MODEL),
       creditProfile: String(input.creditProfile || DEFAULT_CREDIT_PROFILE),
+      onEvent: (event) => {
+        if (isCancelled(job)) return;
+        const live = jobs.get(job.id);
+        if (!live || live.status === 'cancelled' || live.status === 'completed') return;
+        const message = humanizeRunnerEvent(event);
+        if (!message) return;
+        if (event.ok === false || event.event === 'provider_error') {
+          const described = describeDolaError(message);
+          const recorded = String(event.recorded || event.code || '');
+          const retryable = [
+            'daily_limit',
+            'rejected_before_consumption',
+            'high_demand',
+            'authentication_lost',
+          ].some((code) => recorded.includes(code)) ||
+            /DOLA_(DAILY_LIMIT|REJECTED_NO_POINT|HIGH_DEMAND|AUTH_LOST)/.test(recorded);
+          if (retryable) {
+            touchJob(live, {
+              status: 'running',
+              message: `${described} Trocando de perfil...`,
+            });
+            return;
+          }
+          touchJob(live, {
+            status: 'failed',
+            error: described,
+            message: described,
+          });
+          return;
+        }
+        if (live.status !== 'running' && live.status !== 'queued') return;
+        const name = String(event.event || '');
+        const nextProgress =
+          name === 'references_verified_before_send'
+            ? 0.58
+            : name === 'references_ready'
+              ? 0.46
+              : name === 'provider_control_confirmed'
+                ? Math.max(live.progress, 0.34)
+                : live.progress;
+        touchJob(live, {
+          status: 'running',
+          progress: Math.max(live.progress, nextProgress),
+          message,
+        });
+      },
     });
     if (isCancelled(job)) throw cancelledError();
     const payload = parseRunnerPayload(result.stdout);
@@ -435,16 +575,17 @@ const executeJob = async (job: DolaJob, input: CreateDolaJobInput) => {
     }
 
     const recorded = String(payload?.recorded || '');
-    const stderr = `${result.stderr}\n${result.stdout}`.trim();
+    const failure = runnerFailureMessage(result, payload);
+    const stderr = `${result.stderr}\n${failure}`.trim();
     const retryable = [
       'daily_limit',
       'rejected_before_consumption',
       'high_demand',
       'authentication_lost',
     ].includes(recorded) || /DOLA_(DAILY_LIMIT|REJECTED_NO_POINT|HIGH_DEMAND|AUTH_LOST)/.test(stderr);
-    errors.push(`profile-${profile}: ${recorded || stderr.slice(-280) || `exit ${result.code}`}`);
+    errors.push(`profile-${profile}: ${failure || recorded || `exit ${result.code}`}`);
     if (!retryable) {
-      throw new Error(describeDolaError(errors[errors.length - 1]));
+      throw new Error(describeDolaError(failure || errors[errors.length - 1]));
     }
   }
 
