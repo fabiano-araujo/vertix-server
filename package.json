@@ -13,7 +13,8 @@
     "test:reference-prompts": "yarn build && node --test dist/tests/reference-image-prompt.test.js",
     "test:season-architecture": "yarn build && node --test dist/tests/season-architecture.test.js",
     "test:episode-paywall": "yarn build && node --test dist/tests/episode-paywall.test.js",
-    "test:ai-json": "yarn build && node --test dist/tests/ai-json.test.js"
+    "test:ai-json": "yarn build && node --test dist/tests/ai-json.test.js",
+    "test:openrouter-request": "yarn build && node --test dist/tests/openrouter-request.test.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.658.1",

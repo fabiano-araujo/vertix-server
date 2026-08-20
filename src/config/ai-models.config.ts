@@ -7,7 +7,7 @@ export const RECOMMENDED_OPENROUTER_MODELS = [
   {
     id: DEFAULT_OPENROUTER_MODEL,
     name: 'DeepSeek V4 Flash',
-    description: 'Padrão do Vertix para esboço, roteiro e takes',
+    description: 'Padrão do Vertix para esboço, fichas, roteiro e takes',
   },
   {
     id: 'deepseek/deepseek-chat',

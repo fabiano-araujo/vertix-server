@@ -1,7 +1,7 @@
 import { prisma } from './prisma';
 import { generateText } from './openrouter.service';
 import { INVALID_AI_JSON_MESSAGE, parseAiJsonObject } from './ai-json.service';
-import { resolveModel } from '../config/ai-models.config';
+import { DEFAULT_OPENROUTER_MODEL, resolveModel } from '../config/ai-models.config';
 import {
   JOB_CANCELLED_MESSAGE,
   clearJobAbort,
@@ -563,11 +563,10 @@ const asMap = (value: unknown): JsonMap =>
     ? value as JsonMap
     : {};
 
-/** DeepSeek V4 default thinking (`high`). Cap reasoning so JSON completions are not truncated. */
+/** DeepSeek V4 thinking. OpenRouter allows only `effort` or `max_tokens`, never both. */
 const DEFAULT_STORY_REASONING = {
   effort: 'high' as const,
   exclude: true,
-  max_tokens: 768,
 };
 
 const isCancelledError = (error: unknown): boolean => {
@@ -1291,7 +1290,7 @@ const generateStorySheets = async (
     provider: 'openrouter',
     model,
   });
-  const raw = await generateJson(model, buildPrompt(request), 5000, abortController);
+  const raw = await generateJson(model, buildPrompt(request), 8000, abortController);
   const result = sanitizeStorySheetsResult(raw);
   const characters = Array.isArray(result.seriesBiblePatch.characters)
     ? result.seriesBiblePatch.characters.length
@@ -1323,7 +1322,7 @@ const runCodexTextAction = async (
     throw new Error('OPENROUTER_API_KEY nao configurada no servidor');
   }
   const model = resolveModel(
-    process.env.OPENROUTER_STORY_MODEL || 'deepseek/deepseek-chat',
+    process.env.OPENROUTER_STORY_MODEL || DEFAULT_OPENROUTER_MODEL,
   );
   if (request.action === 'GENERATE_SERIES_OUTLINE') {
     return generateOutlineInStages(request, model, onProgress, abortController);

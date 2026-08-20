@@ -25,6 +25,53 @@ export const AVAILABLE_MODELS = {
   MISTRAL_SMALL_3_1_24B: 'mistralai/mistral-small-3.1-24b-instruct',
 };
 
+export type OpenRouterReasoning = {
+  effort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+  max_tokens?: number;
+  exclude?: boolean;
+};
+
+/** OpenRouter rejects payloads that set both `reasoning.effort` and `reasoning.max_tokens`. */
+export const sanitizeOpenRouterReasoning = (
+  reasoning?: OpenRouterReasoning | null,
+): OpenRouterReasoning | undefined => {
+  if (!reasoning) return undefined;
+  const { effort, max_tokens, exclude } = reasoning;
+  if (effort) {
+    return exclude === undefined ? { effort } : { effort, exclude };
+  }
+  if (typeof max_tokens === 'number') {
+    return exclude === undefined ? { max_tokens } : { max_tokens, exclude };
+  }
+  if (exclude !== undefined) {
+    return { exclude };
+  }
+  return undefined;
+};
+
+export const openRouterErrorMessage = (error: unknown): string => {
+  const response = (error as { response?: { status?: number; data?: unknown } })?.response;
+  const data = response?.data;
+  const nested =
+    data && typeof data === 'object'
+      ? (data as { error?: { message?: unknown } | string; message?: unknown }).error
+      : undefined;
+  const detail = typeof nested === 'string'
+    ? nested
+    : nested && typeof nested === 'object' && nested.message != null
+      ? String(nested.message)
+      : data && typeof data === 'object' && (data as { message?: unknown }).message != null
+        ? String((data as { message?: unknown }).message)
+        : '';
+  const status = response?.status;
+  if (detail && status) {
+    return `OpenRouter ${status}: ${detail}`;
+  }
+  if (detail) return detail;
+  const fallback = (error as { message?: string })?.message;
+  return fallback || 'Falha no OpenRouter';
+};
+
 // :nitro = sort throughput (mais rápido). Sem sufixo o OpenRouter usa o roteamento padrão (Balanced).
 const OPENROUTER_ROUTING_SUFFIX = /:(nitro|floor|exacto)\b/gi;
 
@@ -236,11 +283,7 @@ export const generateText = async (
     model?: string;
     streaming?: boolean;
     timeout?: number;
-    reasoning?: {
-      effort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
-      max_tokens?: number;
-      exclude?: boolean;
-    };
+    reasoning?: OpenRouterReasoning;
     response_format?: { type: 'json_object' | 'text' };
   } = {},
   abortController?: AbortController
@@ -273,8 +316,9 @@ export const generateText = async (
     if (options.response_format) {
       request.response_format = options.response_format;
     }
-    if (options.reasoning) {
-      request.reasoning = options.reasoning;
+    const reasoning = sanitizeOpenRouterReasoning(options.reasoning);
+    if (reasoning) {
+      request.reasoning = reasoning;
     }
 
     console.log(
@@ -334,7 +378,7 @@ export const generateText = async (
     }
     
     logDetailedError(error);
-    throw error;
+    throw new Error(openRouterErrorMessage(error));
   }
 };
 
