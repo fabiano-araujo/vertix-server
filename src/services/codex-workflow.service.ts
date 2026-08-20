@@ -1,5 +1,6 @@
 import { prisma } from './prisma';
 import { generateText } from './openrouter.service';
+import { INVALID_AI_JSON_MESSAGE, parseAiJsonObject } from './ai-json.service';
 import { resolveModel } from '../config/ai-models.config';
 import {
   JOB_CANCELLED_MESSAGE,
@@ -487,6 +488,13 @@ WARDROBE LOCK: For each scene, set cast_looks as {"character-id":"look-id"} usin
 LOCKED STORY RULE: Dramatize only lockedEpisode / the selected episode outline. Keep the same characters, locations, and plot. If the outline is a cafeteria reunion, do not invent palaces, kings, or a different cast.
 `;
 
+const episodeSceneContract = `
+Write ONE filmable scene as vertical-drama shots. Follow LOCKED STORY RULE. Do not invent a different plot, cast, or world. Do not return the rest of the episode.
+resultJson shape:
+{"scene":{"episode":1,"scene":1,"title":"...","location_id":"...","location":"...","time_of_day":"NIGHT","interior_exterior":"INT","dramatic_beat":"...","cast_ids":["..."],"cast":["..."],"cast_looks":{"character-id":"default"},"story":"...","status":"DRAFT_REVIEW_REQUIRED","shots":[{"number":1,"title":"...","duration_seconds":8,"status":"DRAFT_REVIEW_REQUIRED","final_state":"...","rows":[{"type":"action","text":"...","provider_text":"...","duration_seconds":2},{"type":"dialogue","line_id":"ep01-l001","speaker":"...","performance":"...","provider_performance":"...","text":"...","duration_seconds":4}]}]}}
+Escape every double quote inside string values. Return only this one scene as valid JSON.
+`;
+
 const productionContract = `
 The requested episode already has a detailed script. Convert each script shot into exactly one production take without rewriting or reordering dialogue.
 resultJson shape:
@@ -522,16 +530,7 @@ const buildPrompt = (request: CodexWorkflowRequest): string => {
   return `${commonContract(request)}\n${actionContract}\nPROJECT_DATA_JSON:\n${JSON.stringify(projectData)}`;
 };
 
-const parseJsonObject = (text: string): any => {
-  try {
-    return JSON.parse(text);
-  } catch {
-    const first = text.indexOf('{');
-    const last = text.lastIndexOf('}');
-    if (first < 0 || last <= first) throw new Error('A IA retornou JSON invalido');
-    return JSON.parse(text.slice(first, last + 1));
-  }
-};
+const parseJsonObject = (text: string): any => parseAiJsonObject(text);
 
 const parseCodexEnvelope = (text: string): { summary: string; result: JsonMap } => {
   const envelope = parseJsonObject(text);
@@ -544,7 +543,9 @@ const parseCodexEnvelope = (text: string): { summary: string; result: JsonMap } 
     envelope?.seriesBiblePatch ||
     Array.isArray(envelope?.episodes) ||
     envelope?.episode ||
-    envelope?.episode_card
+    envelope?.episode_card ||
+    envelope?.scene ||
+    Array.isArray(envelope?.scene_plan)
   ) {
     result = envelope;
   }
@@ -562,10 +563,11 @@ const asMap = (value: unknown): JsonMap =>
     ? value as JsonMap
     : {};
 
-/** DeepSeek V4 default thinking (`high`). A tiny max_tokens cap forces the fastest/minimal budget. */
+/** DeepSeek V4 default thinking (`high`). Cap reasoning so JSON completions are not truncated. */
 const DEFAULT_STORY_REASONING = {
   effort: 'high' as const,
   exclude: true,
+  max_tokens: 768,
 };
 
 const isCancelledError = (error: unknown): boolean => {
@@ -584,30 +586,56 @@ const throwIfAborted = (abortController?: AbortController) => {
   throw new Error(JOB_CANCELLED_MESSAGE);
 };
 
+const isRecoverableJsonError = (error: unknown): boolean => {
+  const message = String((error as { message?: string })?.message || '');
+  return (
+    message.includes(INVALID_AI_JSON_MESSAGE) ||
+    message.includes('resultado invalido') ||
+    message.includes('JSON invalido')
+  );
+};
+
+const jsonRepairInstruction =
+  'The previous response was invalid JSON. Return ONLY one valid JSON object matching the required result shape. Escape quotes inside strings. No markdown.';
+
 const generateJson = async (
   model: string,
   prompt: string | Array<{ role: string; content: string }>,
   maxTokens: number,
   abortController?: AbortController,
 ): Promise<JsonMap> => {
-  throwIfAborted(abortController);
-  const text = await generateText(
-    prompt,
-    {
-      model,
-      temperature: 0.7,
-      max_tokens: maxTokens,
-      timeout: 180000,
-      response_format: { type: 'json_object' },
-      reasoning: DEFAULT_STORY_REASONING,
-    },
-    abortController,
-  );
-  throwIfAborted(abortController);
-  if (typeof text !== 'string' || !text.trim()) {
-    throw new Error('OpenRouter retornou resposta vazia');
+  const run = async (
+    nextPrompt: string | Array<{ role: string; content: string }>,
+  ): Promise<JsonMap> => {
+    throwIfAborted(abortController);
+    const text = await generateText(
+      nextPrompt,
+      {
+        model,
+        temperature: 0.7,
+        max_tokens: maxTokens,
+        timeout: 180000,
+        response_format: { type: 'json_object' },
+        reasoning: DEFAULT_STORY_REASONING,
+      },
+      abortController,
+    );
+    throwIfAborted(abortController);
+    if (typeof text !== 'string' || !text.trim()) {
+      throw new Error('OpenRouter retornou resposta vazia');
+    }
+    return parseCodexEnvelope(text).result;
+  };
+
+  try {
+    return await run(prompt);
+  } catch (error) {
+    if (!isRecoverableJsonError(error) || isCancelledError(error)) throw error;
+    const retryPrompt = Array.isArray(prompt)
+      ? [...prompt, { role: 'user', content: jsonRepairInstruction }]
+      : `${prompt}\n\n${jsonRepairInstruction}`;
+    return run(retryPrompt);
   }
-  return parseCodexEnvelope(text).result;
 };
 
 const compactSeriesForEpisodeOutline = (
@@ -1002,6 +1030,20 @@ const scenePreview = (scene: JsonMap): string => {
   ].filter(Boolean).join('\n');
 };
 
+const compactPreviousScenes = (scenes: JsonMap[]): JsonMap[] =>
+  scenes.map((scene) => {
+    const shots = Array.isArray(scene.shots) ? scene.shots : [];
+    const last = asMap(shots[shots.length - 1]);
+    return {
+      scene: scene.scene,
+      title: scene.title,
+      location: scene.location,
+      shot_count: shots.length,
+      last_shot_number: last.number || 0,
+      last_final_state: last.final_state || '',
+    };
+  });
+
 const generateEpisodeScriptInStages = async (
   request: CodexWorkflowRequest,
   model: string,
@@ -1148,8 +1190,8 @@ Cold open must be freeze-frame clear at 3s. Cut 2 seconds early on the unanswere
     await publish(pct, `Escrevendo a cena ${plannedScene.scene}/${planned.length}...`, true);
     const sceneResult = await generateJson(
       model,
-      `${commonContract(request)}\n${episodeScriptContract}\n${lockRule}\n${wardrobeLock}\nWrite ONLY scene ${plannedScene.scene} of ${planned.length} for episode ${episodeNumber}. Scene duration must be exactly ${plannedScene.duration_seconds}s. Shot numbers must start at ${shotNumber} and be contiguous. ${shotFixed ? `Each shot must last exactly ${maxShot}s.` : `Each shot 1-${maxShot}s.`} Row durations must sum to the shot. Return result shape: {"scene":{"episode":${episodeNumber},"scene":${plannedScene.scene},"title":${JSON.stringify(plannedScene.title || '')},"location_id":${JSON.stringify(plannedScene.location_id || '')},"location":${JSON.stringify(plannedScene.location || '')},"time_of_day":${JSON.stringify(plannedScene.time_of_day || 'DAY')},"interior_exterior":${JSON.stringify(plannedScene.interior_exterior || 'INT')},"dramatic_beat":${JSON.stringify(plannedScene.dramatic_beat || '')},"cast_ids":${JSON.stringify(plannedScene.cast_ids || [])},"cast":${JSON.stringify(plannedScene.cast || [])},"cast_looks":${JSON.stringify(plannedScene.cast_looks || {})},"story":${JSON.stringify(plannedScene.story || '')},"status":"DRAFT_REVIEW_REQUIRED","shots":[{"number":${shotNumber},"title":"...","duration_seconds":8,"status":"DRAFT_REVIEW_REQUIRED","final_state":"...","rows":[{"type":"action","text":"...","duration_seconds":2}]}]}}\nPREVIOUS_SCENES_JSON:\n${JSON.stringify(scriptBase.scenes)}\nSCENE_PLAN_JSON:\n${JSON.stringify(plannedScene)}\nCAST_LOOKS_CATALOG_JSON:\n${JSON.stringify(castLooksCatalog)}\nLOCKED_STORY_JSON:\n${JSON.stringify({ ...compact, lockedEpisode: locked })}`,
-      3200,
+      `${commonContract(request)}\n${episodeSceneContract}\n${lockRule}\n${wardrobeLock}\nWrite ONLY scene ${plannedScene.scene} of ${planned.length} for episode ${episodeNumber}. Scene duration must be exactly ${plannedScene.duration_seconds}s. Shot numbers must start at ${shotNumber} and be contiguous. ${shotFixed ? `Each shot must last exactly ${maxShot}s.` : `Each shot 1-${maxShot}s.`} Row durations must sum to the shot. Return result shape: {"scene":{"episode":${episodeNumber},"scene":${plannedScene.scene},"title":${JSON.stringify(plannedScene.title || '')},"location_id":${JSON.stringify(plannedScene.location_id || '')},"location":${JSON.stringify(plannedScene.location || '')},"time_of_day":${JSON.stringify(plannedScene.time_of_day || 'DAY')},"interior_exterior":${JSON.stringify(plannedScene.interior_exterior || 'INT')},"dramatic_beat":${JSON.stringify(plannedScene.dramatic_beat || '')},"cast_ids":${JSON.stringify(plannedScene.cast_ids || [])},"cast":${JSON.stringify(plannedScene.cast || [])},"cast_looks":${JSON.stringify(plannedScene.cast_looks || {})},"story":${JSON.stringify(plannedScene.story || '')},"status":"DRAFT_REVIEW_REQUIRED","shots":[{"number":${shotNumber},"title":"...","duration_seconds":8,"status":"DRAFT_REVIEW_REQUIRED","final_state":"...","rows":[{"type":"action","text":"...","duration_seconds":2}]}]}}\nPREVIOUS_SCENES_JSON:\n${JSON.stringify(compactPreviousScenes(scriptBase.scenes as JsonMap[]))}\nSCENE_PLAN_JSON:\n${JSON.stringify(plannedScene)}\nCAST_LOOKS_CATALOG_JSON:\n${JSON.stringify(castLooksCatalog)}\nLOCKED_STORY_JSON:\n${JSON.stringify({ ...compact, lockedEpisode: locked })}`,
+      8000,
       abortController,
     );
     const scene = asMap(sceneResult.scene || sceneResult);
