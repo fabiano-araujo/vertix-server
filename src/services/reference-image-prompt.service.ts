@@ -261,36 +261,137 @@ const stableHash = (value: string): number => {
 
 const coverCompositions = [
   {
-    id: 'dual-tension-diagonal',
-    direction: 'Two principal characters in unequal scale, separated by a strong diagonal of negative space; their eyelines create unresolved dramatic tension.',
+    id: 'solo-extreme-close',
+    subjectMode: 'solo',
+    visibleCast: 'exactly one person: the protagonist only; no second figure anywhere in frame',
+    direction: 'Prestige-series extreme close-up of the protagonist only. Crop tight through forehead or chin so one face fills the poster. Eyes may look off-camera. No second person, no couple stack, no waist-up beauty lineup.',
   },
   {
-    id: 'intimate-portrait-symbol',
-    direction: 'One emotionally charged close portrait dominates while one premise-defining physical symbol appears smaller but unmistakable in the lower depth plane.',
+    id: 'solo-profile-investigation',
+    subjectMode: 'solo',
+    visibleCast: 'exactly one person: the protagonist only, seen in profile or from behind',
+    direction: 'One protagonist in strict profile or from behind, looking at a premise-defining wall, document, window or city. Mystery and withholding. The face may be partial. No one else appears. Do not turn this into a forward-facing portrait.',
   },
   {
-    id: 'environment-led-silhouette',
-    direction: 'The recurring environment carries most of the composition; the protagonist is a smaller readable silhouette and the opposing force is implied through light or architecture.',
+    id: 'solo-walk-environment',
+    subjectMode: 'solo',
+    visibleCast: 'exactly one person: the protagonist moving through the approved location',
+    direction: 'Medium-wide candid of the protagonist walking or pausing inside the approved story world. Natural body, not a posed catalog stance. Location must be specific and readable. No companion in the background.',
   },
   {
-    id: 'foreground-secret-background-threat',
-    direction: 'A sharp story-critical object or gesture anchors the foreground, a human face holds the middle plane, and the threat resolves in the distant background.',
+    id: 'object-first-face-second',
+    subjectMode: 'object',
+    visibleCast: 'one face only, secondary to a story object; never a two-person stack',
+    direction: 'A story-critical object, document, vehicle or gesture owns the foreground. One human face holds the middle plane at smaller scale. No second person. This is not a couple poster with a prop.',
   },
   {
-    id: 'asymmetric-ensemble-pyramid',
-    direction: 'Build an asymmetric three-level character hierarchy with one clear protagonist, one secondary relationship and one distant opposing presence; never a floating-head collage.',
+    id: 'environment-almost-empty',
+    subjectMode: 'environment',
+    visibleCast: 'the protagonist as a small readable figure only; opposing force implied by architecture or light, not a second posed body',
+    direction: 'The approved location is the poster. The protagonist is a small but readable figure, not a giant foreground face. Weather, architecture and depth carry the drama. Do not enlarge a second character behind them.',
   },
   {
-    id: 'reflection-without-split-screen',
-    direction: 'Use one physically plausible reflection in glass, rain, polished stone or a mirror to reveal the hidden conflict, while preserving one continuous photographed scene rather than split panels.',
+    id: 'duo-over-shoulder',
+    subjectMode: 'duo',
+    visibleCast: 'two people in one continuous photographed scene: camera over one shoulder, the other face readable',
+    direction: 'Over-the-shoulder coverage, as in a scene still. One person is a shoulder/back in the foreground; the other face is deeper in frame. Different eyelines. Neither stands in a stacked poster pose. At most one person may look toward camera.',
   },
   {
-    id: 'low-angle-power-reversal',
-    direction: 'A restrained low-angle medium portrait suggests power, but a high-background clue visibly reverses who is actually in control.',
+    id: 'duo-conflict-action',
+    subjectMode: 'duo',
+    visibleCast: 'two people physically interacting in one moment of conflict or pursuit',
+    direction: 'Two people in a tense physical beat: confrontation, pursuit, restraint or a charged doorway. Bodies overlap in action, not as layered portraits. Different heights, different gazes, no beauty-lineup symmetry.',
   },
   {
-    id: 'quiet-negative-space-hook',
-    direction: 'Use a single still figure pushed off-center with bold negative space, one specific trace of the central secret and an atmosphere of imminent consequence.',
+    id: 'duo-reversed-hierarchy',
+    subjectMode: 'duo',
+    visibleCast: 'two people: the opposing force is larger and closer; the protagonist is smaller, off-axis, not looking at camera',
+    direction: 'Invert the usual romance poster. Put the opposing force large in the foreground. Put the protagonist smaller, to the side or deeper, with a different body orientation. They must not both face the camera. Do not put a woman large in front and a man smaller behind her.',
+  },
+  {
+    id: 'reflection-single-scene',
+    subjectMode: 'duo',
+    visibleCast: 'one continuous scene: one body in space plus one physically plausible reflection of the other person',
+    direction: 'One photographed place. A real reflection in glass, rain, a mirror or polished stone reveals the other character. Not a split-screen. Not two people standing in depth like a movie poster.',
+  },
+  {
+    id: 'ensemble-depth-not-collage',
+    subjectMode: 'ensemble',
+    visibleCast: 'three depths: protagonist, one relationship, one distant opposing presence; no floating heads',
+    direction: 'Asymmetric three-plane staging inside one location. People occupy real ground. No floating-head montage, no identical scale, no everyone facing camera.',
+  },
+  {
+    id: 'quiet-off-center-solo',
+    subjectMode: 'solo',
+    visibleCast: 'exactly one still figure, pushed off-center',
+    direction: 'A single still figure pushed off-center with bold negative space and one trace of the central secret. Quiet, imminent. No second person filling the empty side.',
+  },
+  {
+    id: 'interior-candid-still',
+    subjectMode: 'solo',
+    visibleCast: 'one or at most two people who are not posing; if a second person exists they are unstaged and not looking at camera',
+    direction: 'Documentary interior still: kitchen, office, stair, shop or bedroom from the approved world. Someone is mid-action and not performing for a poster. Hard daylight or practical lamps, not cinematic rain-night default.',
+  },
+  {
+    id: 'solo-full-body-graphic',
+    subjectMode: 'solo',
+    visibleCast: 'exactly one person, full body or long shot, costume and stance as the graphic',
+    direction: 'Centered or slightly off-center long shot of the protagonist only, full body readable, like a costume-icon streaming poster. Simple ground plane. No second person, no couple hierarchy, no waist-up crop.',
+  },
+  {
+    id: 'duo-profile-standoff',
+    subjectMode: 'duo',
+    visibleCast: 'two people on the same plane, facing each other in profile',
+    direction: 'Two busts or waist-up figures in profile, looking at each other, near-equal scale, confrontation lockup. Neither stands behind the other. Neither looks into camera. This is a face-off, not a romance stack.',
+  },
+  {
+    id: 'mid-stride-soft-cast',
+    subjectMode: 'solo',
+    visibleCast: 'one sharp moving protagonist; any other people are unposed and out of focus',
+    direction: 'Protagonist captured mid-stride or mid-gesture, walking toward or across camera. Background is real architecture with shallow focus. Extra bodies if any are blur, not a posed partner looking forward.',
+  },
+] as const;
+
+const coverLayerSystems = [
+  {
+    id: 'flat-color-plate',
+    direction: 'Rear plane is a designed flat color or simple gradient field, not a rainy street photograph. The figure sits on that graphic plate like a catalog icon.',
+  },
+  {
+    id: 'translucent-monument-face',
+    direction: 'A huge, semi-transparent or softly defocused face fills the rear graphic layer at billboard scale. The foreground is a smaller body, gesture or action. The back face is a designed layer, not a second extra standing behind the hero looking forward.',
+  },
+  {
+    id: 'profile-versus-profile',
+    direction: 'If two people appear, keep them on the SAME depth plane facing each other in profile. If only one person appears, use a strict profile against a clean rear plane. Never place one body in front of another both facing camera.',
+  },
+  {
+    id: 'soft-depth-hallway',
+    direction: 'Photographic shallow depth of field: sharp subject, receding corridor, stair, street or ward melting out of focus. Real space with a near layer and a far layer, not two cutout portraits.',
+  },
+  {
+    id: 'silhouette-light-plate',
+    direction: 'Rear plane is a blast of light, sky or practical glare. Foreground reads as dark or semi-silhouette shape against it. Graphic exposure, not a lit beauty couple.',
+  },
+  {
+    id: 'evidence-texture-wall',
+    direction: 'The rear layer is a dense story surface: photos, notes, glass, rain-streaked window or tiled corridor. One person occupies the near plane. Texture explains the premise; it is not a floating-head collage.',
+  },
+  {
+    id: 'architectural-frame',
+    direction: 'A door, window, stair cut or vehicle opening is a graphic frame layer. Someone peeks, steps through or is cropped by that frame. Architecture is a plane, not leftover bokeh.',
+  },
+  {
+    id: 'icon-object-coequal',
+    direction: 'A premise object or vehicle is a full layer equal to the person: letter, car, helicopter, hospital doors, weapon. It occupies real scale, not a tiny hand-prop.',
+  },
+  {
+    id: 'gesture-crop-overlay',
+    direction: 'Extreme graphic crop: eyes, hands or a costume color field become the layers. Hands may sit in front of the face. Almost no environment.',
+  },
+  {
+    id: 'action-lunge-depth',
+    direction: 'Foreground layer is a body lunging, running or reaching toward the lens. Rear layer is motion-compressed street, a giant quiet face, or deep city space. Energy, not a posed two-shot.',
   },
 ] as const;
 
@@ -1233,28 +1334,36 @@ const coverPaletteSystems = [
     direction: 'deep neutral blacks, restrained amber practical light and natural skin color',
   },
   {
-    id: 'storm-blue-warm-skin',
-    direction: 'storm blue shadows, warm believable skin and one muted red-brown story accent',
+    id: 'graphic-monochrome',
+    direction: 'true black-and-white silver still, no color, deep blacks and paper whites, like a prestige portrait key art',
+  },
+  {
+    id: 'stylized-single-tint',
+    direction: 'one dominant graphic tint — yellow, teal or crushed red — over a photoreal image, authored grade not a cheap filter',
+  },
+  {
+    id: 'harsh-daylight',
+    direction: 'hard natural daylight, high noon or late-afternoon sun, bleached walls or open street; do not default to rainy night',
   },
   {
     id: 'ivory-burgundy',
     direction: 'soft ivory highlights, dense burgundy accents and charcoal neutrals',
   },
   {
-    id: 'rain-green-gold',
-    direction: 'wet mineral greens, controlled old-gold practicals and neutral flesh tones',
-  },
-  {
-    id: 'steel-lilac',
-    direction: 'steel gray architecture, restrained lilac dusk and one warm human focal point',
-  },
-  {
-    id: 'tobacco-cyan',
-    direction: 'muted tobacco warmth against small physically motivated cyan reflections',
+    id: 'interior-fluorescent',
+    direction: 'believable interior practicals: fluorescent, tungsten or shop neon mixed with ordinary room bounce, not cinematic moonlight',
   },
   {
     id: 'paper-black-crimson',
     direction: 'near-black depth, tactile paper-white highlights and a sparse crimson narrative accent',
+  },
+  {
+    id: 'dusty-afternoon',
+    direction: 'dry late-day dust, warm concrete and long shadows; outdoor and specific, not wet-asphalt night romance',
+  },
+  {
+    id: 'storm-blue-warm-skin',
+    direction: 'storm blue shadows, warm believable skin and one muted red-brown story accent',
   },
   {
     id: 'natural-night-neon',
@@ -1396,16 +1505,17 @@ export const resolveReferenceSourceImages = (
 
 const coverIdentityPhotographContract = (
   identities: ReferenceSourceImage[],
+  composition: (typeof coverCompositions)[number],
 ): string => {
   if (identities.length === 0) return '';
   const locks = identities.map((lock, index) => {
     const name = lock.label || `character ${index + 1}`;
-    return `Image ${index + 1} is the canonical identity of ${name}. Keep this exact face, age, ethnicity, hair architecture, bone structure and body. Do not generate a different person.`;
+    return `Image ${index + 1} is the canonical identity of ${name}. If this person appears, keep this exact face, age, ethnicity, hair architecture, bone structure and body. Do not generate a different person.`;
   }).join('\n');
-  return `IDENTITY PHOTOGRAPHS — attached input images are canonical people, not posters to copy:
+  return `IDENTITY PHOTOGRAPHS — these are face locks, not a cast list to illustrate:
 ${locks}
-Compose a new original cover scene around these people. Do not copy identity-sheet layout, shattered portrait, turnaround views, labels, off-white studio backdrop or editorial typography from those sheets. Extract only the person.
-If an expected identity photograph is missing, follow the text anchors only for that person.`;
+VISIBLE CAST FOR THIS COVER — ${composition.visibleCast}. Extra identity photos must not be added to the frame just because they were attached.
+Compose a new original cover scene. Do not copy identity-sheet layout, shattered portrait, turnaround views, labels, off-white studio backdrop or editorial typography from those sheets. Extract only the person.`;
 };
 
 const compileAppCoverPrompt = (
@@ -1462,18 +1572,23 @@ const compileAppCoverPrompt = (
   const seed = stableHash(`${title.toLocaleLowerCase('pt-BR')}|${genre.toLocaleLowerCase('pt-BR')}`);
   const composition = coverCompositions[seed % coverCompositions.length];
   const typography = coverTypographySystems[
-    Math.floor(seed / coverCompositions.length) % coverTypographySystems.length
+    stableHash(`${title}|type`) % coverTypographySystems.length
   ];
   const palette = coverPaletteSystems[
-    Math.floor(seed / (coverCompositions.length * coverTypographySystems.length))
-      % coverPaletteSystems.length
+    stableHash(`${title}|grade`) % coverPaletteSystems.length
+  ];
+  const layer = coverLayerSystems[
+    stableHash(`${title}|layer`) % coverLayerSystems.length
   ];
   const identityLocks = collectDeclaredSourceImages(metadata, input);
-  const identityPhotographs = coverIdentityPhotographContract(identityLocks);
+  const identityPhotographs = coverIdentityPhotographContract(
+    identityLocks,
+    composition,
+  );
 
   return {
     prompt: `Create one original vertical 2:3 premium global-streaming series cover as polished,
-photorealistic live-action key art with Netflix-level finish and small-card
+photorealistic live-action key art with Netflix-catalog variety and small-card
 readability, without copying any existing show poster, platform branding or trade
 dress.
 
@@ -1488,8 +1603,20 @@ ${identityPhotographs ? `
 ${identityPhotographs}
 ` : ''}
 COMPOSITION VARIANT — ${composition.id}: ${composition.direction}
+VISIBLE CAST — ${composition.visibleCast}
+LAYER VARIANT — ${layer.id}: ${layer.direction}
 TYPOGRAPHY VARIANT — ${typography.id}: ${typography.direction}
 PALETTE VARIANT — ${palette.id}: ${palette.direction}.
+
+CATALOG ANTI-CLONE — do not manufacture the generic vertical-drama key art already
+used in this catalog: a woman large in the foreground looking into camera and a
+man smaller behind her, both facing forward on a rainy night street. Do not stack
+two waist-up figures as layered portraits. Do not give every series the same
+camera height, the same 3/4 couple hierarchy, or the same night-rain grade.
+If two people appear, they must differ in scale, eyeline, body orientation and
+depth; at most one person may look toward camera. If this variant is solo,
+object or environment, do not insert a second standing person. Layer planes must
+not collapse into a woman-cutout in front of a man-cutout.
 
 Integrate the title as a designed wordmark inside the poster image, not as a UI
 overlay. Give it intentional hierarchy, kerning and line breaks appropriate to
@@ -1502,8 +1629,8 @@ Photograph believable people and locations with plausible lens perspective,
 physically motivated light, natural skin texture and asymmetry, individual hair,
 real fabric and material response, restrained contrast, coherent shadows,
 realistic depth and subtle sensor grain. Build one decisive dramatic promise, not
-a synopsis collage. Preserve enough dark or quiet separation behind the title for
-clean readability while keeping the image visually rich at full size.
+a synopsis collage. Keep a readable quiet area behind the title — shadow, wall,
+sky or out-of-focus light — not always a black bar.
 
 Exactly one vertical cover, one continuous composition and the exact series title
 once. No subtitle, episode number, billing block, platform logo, Netflix N,
@@ -1516,6 +1643,8 @@ floating-head montage, misspelled text or extra readable words.`,
       targetField: 'Series.coverUrl',
       aspectRatio: '2:3 portrait',
       coverCompositionVariant: composition.id,
+      coverSubjectMode: composition.subjectMode,
+      coverLayerVariant: layer.id,
       coverTypographyVariant: typography.id,
       coverPaletteVariant: palette.id,
       sourceImageCount: String(identityLocks.length),

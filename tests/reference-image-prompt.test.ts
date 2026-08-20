@@ -159,6 +159,10 @@ test('app cover uses premium portrait key art and embeds the exact series title'
   assert.match(result.prompt, /Typography must feel authored for this series/i);
   assert.match(result.prompt, /No subtitle, episode number/i);
   assert.match(result.prompt, /No .*Netflix N/i);
+  assert.match(result.prompt, /LAYER VARIANT/i);
+  assert.match(result.prompt, /CATALOG ANTI-CLONE/i);
+  assert.match(result.prompt, /woman large in the foreground/i);
+  assert.match(result.prompt, /at most one person may look toward camera/i);
   assert.doesNotMatch(result.prompt, /location-scout photograph/i);
 });
 
@@ -170,6 +174,11 @@ test('cover design is deterministic per series and varies across the catalog', (
     'Fragmentos do Passado',
     'Máscara de Retribuição',
     'O Contrato da Chuva',
+    'Segredos do Morro',
+    'Cicatrizes do Morro',
+    'Amar em Tempos de Chuva',
+    'Amor em Jogo',
+    'Ciclos do Coração',
   ];
   const compiled = titles.map((title) => compileReferenceImagePrompt({
     label: title,
@@ -187,7 +196,11 @@ test('cover design is deterministic per series and varies across the catalog', (
   assert.equal(repeated.prompt, compiled[0].prompt);
   assert.deepEqual(repeated.promptMetadata, compiled[0].promptMetadata);
   assert.ok(new Set(compiled.map((item) =>
-    item.promptMetadata?.coverCompositionVariant)).size > 1);
+    item.promptMetadata?.coverCompositionVariant)).size > 3);
+  assert.ok(new Set(compiled.map((item) =>
+    item.promptMetadata?.coverSubjectMode)).size > 1);
+  assert.ok(new Set(compiled.map((item) =>
+    item.promptMetadata?.coverLayerVariant)).size > 1);
   assert.ok(new Set(compiled.map((item) =>
     item.promptMetadata?.coverTypographyVariant)).size > 1);
   assert.ok(new Set(compiled.map((item) =>
@@ -226,9 +239,12 @@ test('app cover names attached character photos as Image 1 and Image 2', () => {
   assert.equal(result.promptMetadata?.sourceImageCount, '2');
   assert.match(result.prompt, /Image 1 is the canonical identity of Marta/i);
   assert.match(result.prompt, /Image 2 is the canonical identity of Helena/i);
+  assert.match(result.prompt, /face locks, not a cast list/i);
+  assert.match(result.prompt, /VISIBLE CAST FOR THIS COVER/i);
   assert.match(result.prompt, /Do not copy identity-sheet layout/i);
   assert.match(result.prompt, /shattered portrait/i);
   assert.match(result.prompt, /Do not generate a different person/i);
+  assert.doesNotMatch(result.prompt, /compose a new original cover scene around these people/i);
 });
 
 test('cover source images fill missing urls from completed identity siblings', () => {
