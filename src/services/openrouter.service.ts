@@ -49,6 +49,39 @@ export const sanitizeOpenRouterReasoning = (
   return undefined;
 };
 
+const EMPTY_LENGTH_RETRY_MAX_TOKENS = 16384;
+const STORY_MIN_COMPLETION_TOKENS = 8192;
+const STORY_RETRY_REASONING_TOKENS = 2048;
+
+/** Hidden thinking stays on; only the JSON answer is returned. */
+export const STORY_REASONING_HIDDEN: OpenRouterReasoning = {
+  effort: 'high',
+  exclude: true,
+};
+
+export const storyCompletionBudget = (maxTokens: number): number =>
+  Math.max(STORY_MIN_COMPLETION_TOKENS, Math.trunc(maxTokens || 0));
+
+export const nextOpenRouterLengthRetry = (
+  currentMaxTokens: number | undefined,
+  finishReason: string | undefined,
+  content: string,
+  alreadyRetried: boolean,
+): { max_tokens: number; reasoning: OpenRouterReasoning } | null => {
+  if (alreadyRetried || String(content || '').trim()) return null;
+  const finish = String(finishReason || '').toLowerCase();
+  const hitLength = finish === 'length' || finish === 'max_tokens' || !finish;
+  if (!hitLength && finish !== 'stop') return null;
+  const current = Math.max(0, Math.trunc(currentMaxTokens || 0));
+  return {
+    max_tokens: Math.min(
+      EMPTY_LENGTH_RETRY_MAX_TOKENS,
+      Math.max(current * 2, STORY_MIN_COMPLETION_TOKENS),
+    ),
+    reasoning: { max_tokens: STORY_RETRY_REASONING_TOKENS, exclude: true },
+  };
+};
+
 export const openRouterErrorMessage = (error: unknown): string => {
   const response = (error as { response?: { status?: number; data?: unknown } })?.response;
   const data = response?.data;
@@ -285,6 +318,7 @@ export const generateText = async (
     timeout?: number;
     reasoning?: OpenRouterReasoning;
     response_format?: { type: 'json_object' | 'text' };
+    lengthRetry?: boolean;
   } = {},
   abortController?: AbortController
 ): Promise<string | Readable> => {
@@ -361,6 +395,27 @@ export const generateText = async (
       if (content.trim()) {
         return content;
       }
+      const retry = nextOpenRouterLengthRetry(
+        options.max_tokens,
+        choice?.finish_reason,
+        content,
+        Boolean(options.lengthRetry),
+      );
+      if (retry) {
+        console.warn(
+          `OpenRouter empty finish=${choice?.finish_reason} reasoning=${usage?.completion_tokens_details?.reasoning_tokens || 0}; retrying max_tokens=${retry.max_tokens} with capped hidden thinking`,
+        );
+        return generateText(
+          prompt,
+          {
+            ...options,
+            max_tokens: retry.max_tokens,
+            reasoning: retry.reasoning,
+            lengthRetry: true,
+          },
+          abortController,
+        );
+      }
       throw new Error(
         `OpenRouter retornou resposta vazia (finish=${choice?.finish_reason || 'unknown'}, reasoning_tokens=${usage?.completion_tokens_details?.reasoning_tokens || 0})`,
       );
@@ -376,7 +431,7 @@ export const generateText = async (
       console.log('Requisição cancelada pelo usuário');
       throw new Error('Requisição cancelada pelo usuário');
     }
-    
+
     logDetailedError(error);
     throw new Error(openRouterErrorMessage(error));
   }

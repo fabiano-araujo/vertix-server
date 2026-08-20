@@ -1,5 +1,5 @@
 import { prisma } from './prisma';
-import { generateText } from './openrouter.service';
+import { generateText, STORY_REASONING_HIDDEN, storyCompletionBudget } from './openrouter.service';
 import { INVALID_AI_JSON_MESSAGE, parseAiJsonObject } from './ai-json.service';
 import { DEFAULT_OPENROUTER_MODEL, resolveModel } from '../config/ai-models.config';
 import {
@@ -563,12 +563,6 @@ const asMap = (value: unknown): JsonMap =>
     ? value as JsonMap
     : {};
 
-/** DeepSeek V4 thinking. OpenRouter allows only `effort` or `max_tokens`, never both. */
-const DEFAULT_STORY_REASONING = {
-  effort: 'high' as const,
-  exclude: true,
-};
-
 const isCancelledError = (error: unknown): boolean => {
   const message = String((error as { message?: string })?.message || '').toLowerCase();
   return (
@@ -612,10 +606,10 @@ const generateJson = async (
       {
         model,
         temperature: 0.7,
-        max_tokens: maxTokens,
+        max_tokens: storyCompletionBudget(maxTokens),
         timeout: 180000,
         response_format: { type: 'json_object' },
-        reasoning: DEFAULT_STORY_REASONING,
+        reasoning: STORY_REASONING_HIDDEN,
       },
       abortController,
     );
@@ -828,7 +822,7 @@ const generateOutlineInStages = async (
     );
   } else {
     await onProgress(8, 'Inventando título e contrato da série...');
-    const bibleResult = await generateJson(model, buildPrompt(request), 4000, abortController);
+    const bibleResult = await generateJson(model, buildPrompt(request), 8192, abortController);
     patch = {
       ...asMap(bibleResult.seriesBiblePatch),
       episode_cards: [] as JsonMap[],
@@ -868,7 +862,7 @@ const generateOutlineInStages = async (
         differentiating_mechanism: patch.differentiating_mechanism,
         language: patch.language || bible.language,
       })}`,
-      4500,
+      8192,
       abortController,
     );
     const architecturePatch = asMap(architectureResult.seriesBiblePatch);
@@ -920,7 +914,7 @@ const generateOutlineInStages = async (
     const spineResult = await generateJson(
       model,
       `${commonContract(request)}\n${spineChunkContract(chunk.start, chunk.end, target)}\nOUTLINE_BATCH_JSON:\n${JSON.stringify(batch)}\nRETENTION_PROFILE_JSON:\n${JSON.stringify(profile)}\nSEASON_BLOCKS_JSON:\n${JSON.stringify(filledBlocks)}\nRESERVED_REVEALS_JSON:\n${JSON.stringify(reservedReveals)}\nPREVIOUS_SPINE_JSON:\n${JSON.stringify(compactSpineForPrompt(spine))}\nSERIES_TITLE: ${title}`,
-      3200,
+      8192,
       abortController,
     );
     spine = mergeSpine(
@@ -959,7 +953,7 @@ const generateOutlineInStages = async (
     const episodeResult = await generateJson(
       model,
       `${commonContract({ ...request, episodeNumber: number })}\n${oneEpisodeContract(number, target, duration)}\nOUTLINE_BATCH_JSON:\n${JSON.stringify(batch)}\nTHIS_SPINE_SLOT:\n${JSON.stringify(thisSlot)}\nNEXT_SPINE_SLOT:\n${JSON.stringify(spine.find((item) => item.episode === number + 1) || null)}\nLOCKED_REVEALS:\n${JSON.stringify(lockedRevealsForEpisode(reservedReveals, number))}\nBEAT_ENGINE_JSON:\n${JSON.stringify(beatEngineForDuration(duration))}\nRECENT_CARDS_JSON:\n${JSON.stringify(recentCardsForPrompt(patch.episode_cards as JsonMap[], number))}\nPREVIOUS_EPISODE_JSON:\n${JSON.stringify(previous || null)}\nPREVIOUS_HOOK_JSON:\n${JSON.stringify(previousHook || null)}\nSERIES_TITLE: ${title}\nPROJECT_DATA_JSON:\n${JSON.stringify(compactSeriesForEpisodeOutline(title, target, patch, spine, number))}`,
-      2600,
+      6144,
       abortController,
     );
     const episodePayload = asMap(episodeResult.episode);
@@ -1144,7 +1138,7 @@ Cold open must be freeze-frame clear at 3s. Cut 2 seconds early on the unanswere
       ...compact,
       lockedEpisode: locked,
     })}`,
-    1800,
+    4096,
     abortController,
   );
   const scenePlan: JsonMap[] = (Array.isArray(planResult.scene_plan) ? planResult.scene_plan : [])
@@ -1341,10 +1335,10 @@ const runCodexTextAction = async (
     {
       model,
       temperature: 0.7,
-      max_tokens: 8000,
+      max_tokens: storyCompletionBudget(8000),
       timeout: 240000,
       response_format: { type: 'json_object' },
-      reasoning: DEFAULT_STORY_REASONING,
+      reasoning: STORY_REASONING_HIDDEN,
     },
     abortController,
   );

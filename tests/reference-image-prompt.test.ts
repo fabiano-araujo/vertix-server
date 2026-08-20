@@ -31,18 +31,16 @@ test('adult character uses the complete hybrid reference contract by default', (
   assert.equal(result.visualReferenceMode, 'hybrid_face_compat');
   assert.match(result.prompt, /LEFT 70% — THREE FULL-BODY TURNAROUND VIEWS/);
   assert.match(result.prompt, /HEAD-TO-BODY SCALE LOCK/);
-  assert.match(result.prompt, /RIGHT PANEL GROUND/);
-  assert.match(result.prompt, /SIX INDEPENDENT PHOTOGRAPHIC ISLANDS/);
-  assert.match(result.prompt, /cold neutral outdoor background/);
+  assert.match(result.prompt, /LARGE BROKEN PHOTOGRAPHIC PORTRAIT/);
+  assert.match(result.prompt, /snowy or cold neutral outdoor background/);
   assert.match(result.prompt, /EXACTLY\s+SIX/);
-  assert.match(result.prompt, /translate\s+each cutout outward by 8-12%/i);
-  assert.match(result.prompt, /channels 10-14%/i);
-  assert.match(result.prompt, /opening around 22-28%/i);
-  assert.match(result.prompt, /360-degree pure-white #FFFFFF moat/i);
+  assert.match(result.prompt, /gaps around 6-8%/i);
+  assert.match(result.prompt, /opening around 12-15%/i);
   assert.match(result.prompt, /terno preto sóbrio/);
   assert.match(result.prompt, /Isabela Costa/);
   assert.doesNotMatch(result.prompt, /#F7F6F2/);
-  assert.doesNotMatch(result.prompt, /NO star-shaped hole/);
+  assert.doesNotMatch(result.prompt, /translate\s+each cutout outward/i);
+  assert.doesNotMatch(result.prompt, /360-degree pure-white/i);
 });
 
 test('the hybrid sheet carries only the approved facts and the layout contract', () => {

@@ -1737,56 +1737,37 @@ strokes; keep most facial skin unshaded. Do not use dense scribbling, heavy
 cross-hatching, hyperreal pencil shading, photographic gradients, a desaturated
 photograph, digital airbrush or 3D rendering.
 
-RIGHT 30% — SIX SEPARATED PHOTOGRAPHIC CUTOUTS: after one thin black vertical
-divider, begin from one dominant, large, front-facing head-and-shoulders portrait
-of the same character. The source portrait is unmistakably photorealistic — a
-believable real photograph taken on a professional camera in natural daylight —
-with natural skin variation, stable asymmetry, realistic eyes, individual hair
-and flyaways, restrained contrast, true-to-life color and subtle sensor grain.
-Use a simple cold neutral outdoor background, such as pale blue-gray winter sky
-or snow-softened distance, visible only inside the photographic cutouts. Keep it
-natural and quiet, never a glamour studio or cinematic-poster treatment.
+RIGHT 30% — LARGE BROKEN PHOTOGRAPHIC PORTRAIT: after one thin black vertical
+divider, show one dominant, large, front-facing head-and-shoulders portrait of the
+same character. It must be unmistakably photorealistic — a believable real
+photograph taken on a professional camera in natural daylight — with natural skin
+variation, stable asymmetry, realistic eyes, individual hair and flyaways,
+restrained contrast, true-to-life color and subtle sensor grain. Use a simple
+snowy or cold neutral outdoor background softened only by real camera depth, not
+a glamour studio or cinematic-poster treatment.
 
-RIGHT PANEL GROUND: outside the six cutouts, the entire right panel is flat pure
-white #FFFFFF. There is no intact portrait, face, hair, neck, clothing, scenery or
-off-white underlayer behind the pieces. Photographic background, face, hair, neck
-and any collar or upper chest exist only inside the six closed cutouts. If collar
-or upper chest appears, divide it between the two lower cutouts and separate it
-with the same wide pure-white moat; it must never reconnect the portrait beneath.
+THE RIGHT PORTRAIT IS THE ONLY SHATTERED ELEMENT: divide the COMPLETE VISIBLE
+PHOTOGRAPHIC HEAD PORTRAIT — FACE PLUS ALL SURROUNDING HEAD HAIR — into EXACTLY
+SIX large, physically disconnected, closed glass polygons. Together, the six
+pieces must unmistakably reconstruct one aligned readable head: eyes/brow, nose,
+cheeks, lips, chin, jaw, skin, hairline and outer hair silhouette. Every piece
+carries substantial photographic face and/or hair content; never create
+transparent empty panes, blank wedges or a hollow mask. Use exactly two upper
+pieces, two middle pieces and two lower pieces — upper-left, upper-right,
+middle-left, middle-right, lower-left and lower-right — around one empty
+pure-white impact opening near the lower nose or mouth. There is NO central
+seventh piece.
 
-SIX INDEPENDENT PHOTOGRAPHIC ISLANDS — NOT CRACKED GLASS OVER A FACE: cut the
-COMPLETE VISIBLE PHOTOGRAPHIC HEAD — FACE PLUS ALL SURROUNDING HEAD HAIR — into
-EXACTLY SIX large, closed photographic glass polygons, then physically translate
-each cutout outward by 8-12% of the complete head width and rotate it slightly,
-about 1-3 degrees in alternating directions. At first glance the result must read
-as six separate floating photographs, not one intact face with crack lines. No
-two pieces touch, share a border, share a center ring, align into an unbroken
-facial contour or visually bridge through skin, hair, shadow, clothing or scenery.
-
-Together, the six displaced pieces must still let a viewer mentally reconstruct
-one identity: eyes/brow, nose, cheeks, lips, chin, jaw, skin, hairline and outer
-hair silhouette. Every piece carries substantial photographic face and/or hair
-content; never create transparent empty panes, blank wedges or a hollow mask. Use
-exactly two upper pieces, two middle pieces and two lower pieces — upper-left,
-upper-right, middle-left, middle-right, lower-left and lower-right — around one
-large empty pure-white impact opening near the lower nose or mouth. No single
-piece may contain a complete standalone face or the complete two-eyes/nose/mouth
-facial triangle. There is NO central seventh piece.
-
-PURE-WHITE SEPARATION CONTRACT: use continuous clean white channels 10-14% of the
-complete head-portrait width between every adjacent pair and a dominant central
-opening around 22-28%. Every cutout is surrounded on all sides by its own
-uninterrupted 360-degree pure-white #FFFFFF moat. At least one unbroken white path
-must run from the central opening to the outer white panel between every adjacent
-pair, so all six islands remain visibly disconnected even at thumbnail size.
-Between and beneath the pieces show ONLY flat pure white #FFFFFF, completely empty:
-no face, hair, skin, body, coat, landscape, portrait continuation, texture,
-reflection, translucent glass or hidden intact head. Each cutout has its own
-complete thin silver-gray perimeter and a tight local edge shadow contained at
-that perimeter; no shadow may cross, fill or darken a white moat. No drawn
+PURE-WHITE GAP CONTRACT: use broad clean gaps around 6-8% of the complete
+head-portrait width and a central opening around 12-15%. Between all six pieces
+show ONLY flat pure white #FFFFFF, completely empty. No face, hair, skin, body,
+portrait continuation, texture, reflection, translucent glass or hidden intact
+head may exist beneath or between the shards. Shadows may touch only the immediate
+shard edge and must not fill or darken a gap. Each piece has its own complete thin
+silver-gray perimeter; the pieces do not touch or share a center ring. No drawn
 crack-line overlay, secondary cracks, small chips or internal subdivisions.
 
-IDENTITY SOURCE CONTRACT: the six separated photographic cutouts on the right are the
+IDENTITY SOURCE CONTRACT: the large broken photograph on the right is the
 canonical source for facial identity, skin, eyes and hair. The photographic
 bodies on the left are the source for body proportions, outfit, colors,
 accessories and materials. The two left drawings are only front/profile
@@ -1794,11 +1775,10 @@ orientation guides. Preserve the same identity, hairstyle, age, body and wardrob
 across every view.
 
 Functional editorial reference only: exactly one character, exactly three
-full-body turnaround views on the left plus exactly six separated photographic
-cutouts derived from one portrait on the right, no extra faces, no thumbnail
-collage, no text besides ${name}, no logo and no watermark. Any intact photographic
-face anywhere on the sheet is a hard failure. Glass appears only on the six right
-cutouts.`;
+full-body turnaround views on the left plus one large broken photographic portrait
+on the right, no extra faces, no thumbnail collage, no text besides ${name}, no
+logo and no watermark. Any intact photographic face anywhere on the sheet is a
+hard failure. Glass appears only on the large right portrait.`;
 };
 
 const compileStandardCharacterPrompt = (

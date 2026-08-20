@@ -2,8 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  nextOpenRouterLengthRetry,
   openRouterErrorMessage,
   sanitizeOpenRouterReasoning,
+  STORY_REASONING_HIDDEN,
+  storyCompletionBudget,
 } from '../src/services/openrouter.service';
 import { DEFAULT_OPENROUTER_MODEL } from '../src/config/ai-models.config';
 
@@ -26,6 +29,33 @@ test('keeps a token budget when effort is omitted', () => {
     sanitizeOpenRouterReasoning({ max_tokens: 768, exclude: true }),
     { max_tokens: 768, exclude: true },
   );
+});
+
+test('story generation thinks under the hood and only returns the answer', () => {
+  assert.deepEqual(STORY_REASONING_HIDDEN, { effort: 'high', exclude: true });
+  assert.deepEqual(
+    sanitizeOpenRouterReasoning(STORY_REASONING_HIDDEN),
+    { effort: 'high', exclude: true },
+  );
+  assert.equal(storyCompletionBudget(3200), 8192);
+  assert.equal(storyCompletionBudget(9000), 9000);
+});
+
+test('retries empty answers with thinking still on, but capped so JSON fits', () => {
+  const lengthRetry = nextOpenRouterLengthRetry(3200, 'length', '', false);
+  assert.ok(lengthRetry);
+  assert.equal(lengthRetry?.max_tokens, 8192);
+  assert.equal(lengthRetry?.reasoning.effort, undefined);
+  assert.equal(lengthRetry?.reasoning.max_tokens, 2048);
+  assert.equal(lengthRetry?.reasoning.exclude, true);
+
+  const emptyStop = nextOpenRouterLengthRetry(3200, 'stop', '', false);
+  assert.ok(emptyStop);
+  assert.equal(emptyStop?.reasoning.max_tokens, 2048);
+  assert.equal(emptyStop?.reasoning.exclude, true);
+
+  assert.equal(nextOpenRouterLengthRetry(3200, 'length', '', true), null);
+  assert.equal(nextOpenRouterLengthRetry(3200, 'length', '{"ok":true}', false), null);
 });
 
 test('surfaces the OpenRouter 400 body instead of Axios status text', () => {
