@@ -23,6 +23,22 @@ export type CompiledReferenceImagePrompt = {
   promptMetadata?: Record<string, string>;
 };
 
+export type ReferenceSourceImage = {
+  index: number;
+  role: string;
+  label: string;
+  url: string;
+  referenceId: string;
+};
+
+export type ReferenceSourceSibling = {
+  id: string;
+  label: string;
+  category: string;
+  publicUrl?: string;
+  status?: string;
+};
+
 const cleanText = (value: unknown, maxLength = 12_000): string =>
   String(value ?? '').trim().slice(0, maxLength);
 
@@ -191,13 +207,9 @@ const compileOutfitLookPrompt = (input: ReferenceImagePromptInput): string => {
     ]),
   ]).join(' ')
     || 'Preserve the approved face, age, body and ethnicity from image 1.';
-  const source = cleanText(
-    metadata.identity_source_url ?? metadata.identitySourceUrl,
-    500,
-  );
   return `${outfitLookInstruction(input)}
 
-IMAGE 1 is the canonical identity sheet of ${name}${source ? ` (${source})` : ''}. Keep the same face, age, height, ethnicity, bone structure, body and hair identity. Change only clothes, shoes, accessories and any hair styling or handheld prop named in the outfit.
+IMAGE 1 is the canonical identity sheet of ${name}. Keep the same face, age, height, ethnicity, bone structure, body and hair identity. Change only clothes, shoes, accessories and any hair styling or handheld prop named in the outfit.
 
 IDENTITY FACTS TO PRESERVE: ${identity}
 
@@ -1250,6 +1262,152 @@ const coverPaletteSystems = [
   },
 ] as const;
 
+const asObject = (value: unknown): Record<string, unknown> | null => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+};
+
+const asList = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+
+const publicImageUrl = (value: unknown): string => {
+  const text = cleanText(value, 500);
+  return /^https?:\/\//i.test(text) ? text : '';
+};
+
+const isCharacterLookCategory = (category: string): boolean => {
+  const value = cleanText(category, 120).toUpperCase();
+  return value.includes('LOOK')
+    || value.includes('OUTFIT')
+    || value.includes('VARIANT');
+};
+
+const isCharacterIdentityCategory = (category: string): boolean => {
+  const value = cleanText(category, 120).toUpperCase();
+  if (isCharacterLookCategory(value)) return false;
+  return value.includes('CHARACTER') || value.includes('OPPOSING_FORCE');
+};
+
+const sourceFromRecord = (
+  value: unknown,
+  fallbackIndex: number,
+): ReferenceSourceImage | null => {
+  const record = asObject(value);
+  if (!record) return null;
+  const label = cleanText(record.label ?? record.name, 180);
+  const referenceId = cleanText(
+    record.referenceId ?? record.reference_id ?? record.id,
+    180,
+  );
+  const url = publicImageUrl(
+    record.url ?? record.publicUrl ?? record.public_url ?? record.sourceUrl,
+  );
+  const role = cleanText(record.role, 80) || 'identity';
+  if (!label && !referenceId && !url) return null;
+  const index = Number(record.index);
+  return {
+    index: Number.isInteger(index) && index > 0 ? index : fallbackIndex,
+    role,
+    label,
+    url,
+    referenceId,
+  };
+};
+
+export const collectDeclaredSourceImages = (
+  metadata: Record<string, unknown> = {},
+  item: { label?: string; category?: string } = {},
+): ReferenceSourceImage[] => {
+  const declared = asList(metadata.sourceImages ?? metadata.source_images)
+    .map((value, index) => sourceFromRecord(value, index + 1))
+    .filter((value): value is ReferenceSourceImage => value !== null);
+  if (declared.length > 0) return declared.slice(0, 4);
+
+  const identityUrl = publicImageUrl(
+    metadata.identity_source_url ?? metadata.identitySourceUrl,
+  );
+  const parentId = cleanText(
+    metadata.parent_character_id
+      ?? metadata.parentCharacterId
+      ?? metadata.parent_id
+      ?? metadata.parentId,
+    180,
+  );
+  if (identityUrl || parentId) {
+    return [{
+      index: 1,
+      role: 'identity',
+      label: cleanText(item.label, 180),
+      url: identityUrl,
+      referenceId: parentId,
+    }];
+  }
+
+  return asList(metadata.characterAnchors ?? metadata.character_anchors)
+    .map((value, index) => sourceFromRecord(value, index + 1))
+    .filter((value): value is ReferenceSourceImage => value !== null)
+    .slice(0, 4);
+};
+
+const siblingPublicUrl = (
+  source: ReferenceSourceImage,
+  siblings: ReferenceSourceSibling[],
+): string => {
+  if (source.referenceId) {
+    const byId = siblings.find((item) => item.id === source.referenceId);
+    if (
+      publicImageUrl(byId?.publicUrl)
+      && (!byId?.status || byId.status === 'COMPLETED')
+    ) {
+      return publicImageUrl(byId?.publicUrl);
+    }
+  }
+  const name = source.label.toLocaleLowerCase('pt-BR');
+  if (!name) return '';
+  const byName = siblings.find((item) => {
+    if (!isCharacterIdentityCategory(item.category)) return false;
+    if (item.status && item.status !== 'COMPLETED') return false;
+    return cleanText(item.label, 180).toLocaleLowerCase('pt-BR') === name;
+  });
+  return publicImageUrl(byName?.publicUrl);
+};
+
+export const resolveReferenceSourceImages = (
+  item: {
+    category: string;
+    label?: string;
+    metadata?: Record<string, unknown>;
+  },
+  siblings: ReferenceSourceSibling[] = [],
+): ReferenceSourceImage[] => {
+  const declared = collectDeclaredSourceImages(item.metadata || {}, item);
+  const completed = siblings.filter((sibling) => {
+    if (sibling.status && sibling.status !== 'COMPLETED') return false;
+    return Boolean(publicImageUrl(sibling.publicUrl));
+  });
+  return declared
+    .map((source, index) => ({
+      ...source,
+      index: index + 1,
+      url: publicImageUrl(source.url) || siblingPublicUrl(source, completed),
+    }))
+    .filter((source) => source.url)
+    .slice(0, 4);
+};
+
+const coverIdentityPhotographContract = (
+  identities: ReferenceSourceImage[],
+): string => {
+  if (identities.length === 0) return '';
+  const locks = identities.map((lock, index) => {
+    const name = lock.label || `character ${index + 1}`;
+    return `Image ${index + 1} is the canonical identity of ${name}. Keep this exact face, age, ethnicity, hair architecture, bone structure and body. Do not generate a different person.`;
+  }).join('\n');
+  return `IDENTITY PHOTOGRAPHS — attached input images are canonical people, not posters to copy:
+${locks}
+Compose a new original cover scene around these people. Do not copy identity-sheet layout, shattered portrait, turnaround views, labels, off-white studio backdrop or editorial typography from those sheets. Extract only the person.
+If an expected identity photograph is missing, follow the text anchors only for that person.`;
+};
+
 const compileAppCoverPrompt = (
   input: ReferenceImagePromptInput,
 ): CompiledReferenceImagePrompt => {
@@ -1310,6 +1468,8 @@ const compileAppCoverPrompt = (
     Math.floor(seed / (coverCompositions.length * coverTypographySystems.length))
       % coverPaletteSystems.length
   ];
+  const identityLocks = collectDeclaredSourceImages(metadata, input);
+  const identityPhotographs = coverIdentityPhotographContract(identityLocks);
 
   return {
     prompt: `Create one original vertical 2:3 premium global-streaming series cover as polished,
@@ -1324,7 +1484,9 @@ ${storyFacts || 'Use only the approved dramatic premise supplied for this series
 
 CANONICAL VISUAL ANCHORS — preserve these identities, wardrobe cues and recurring
 world details instead of redesigning them: characters: ${characterAnchors || 'use the approved protagonist and opposing-force descriptions above'}; environments: ${environmentAnchors || 'use the approved story setting above'}.
-
+${identityPhotographs ? `
+${identityPhotographs}
+` : ''}
 COMPOSITION VARIANT — ${composition.id}: ${composition.direction}
 TYPOGRAPHY VARIANT — ${typography.id}: ${typography.direction}
 PALETTE VARIANT — ${palette.id}: ${palette.direction}.
@@ -1356,6 +1518,7 @@ floating-head montage, misspelled text or extra readable words.`,
       coverCompositionVariant: composition.id,
       coverTypographyVariant: typography.id,
       coverPaletteVariant: palette.id,
+      sourceImageCount: String(identityLocks.length),
     },
   };
 };

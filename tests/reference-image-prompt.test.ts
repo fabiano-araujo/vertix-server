@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   REFERENCE_IMAGE_PROMPT_CONTRACT,
   compileReferenceImagePrompt,
+  resolveReferenceSourceImages,
 } from '../src/services/reference-image-prompt.service';
 
 type PromptInput = Parameters<typeof compileReferenceImagePrompt>[0];
@@ -191,6 +192,79 @@ test('cover design is deterministic per series and varies across the catalog', (
     item.promptMetadata?.coverTypographyVariant)).size > 1);
   assert.ok(new Set(compiled.map((item) =>
     item.promptMetadata?.coverPaletteVariant)).size > 1);
+});
+
+test('app cover names attached character photos as Image 1 and Image 2', () => {
+  const result = compileReferenceImagePrompt({
+    label: 'Capa da série',
+    category: 'APP_COVER',
+    description: 'Uma chef reencontra o ex-noivo.',
+    metadata: {
+      seriesTitle: 'Segunda Chance',
+      genre: 'Romance',
+      protagonist: 'Marta',
+      opposingForce: 'Helena',
+      sourceImages: [
+        {
+          index: 1,
+          role: 'identity',
+          label: 'Marta',
+          url: 'https://cdn.example.com/marta.png',
+          referenceId: 'character-marta',
+        },
+        {
+          index: 2,
+          role: 'identity',
+          label: 'Helena',
+          url: 'https://cdn.example.com/helena.png',
+          referenceId: 'character-helena',
+        },
+      ],
+    },
+  });
+
+  assert.equal(result.promptMetadata?.sourceImageCount, '2');
+  assert.match(result.prompt, /Image 1 is the canonical identity of Marta/i);
+  assert.match(result.prompt, /Image 2 is the canonical identity of Helena/i);
+  assert.match(result.prompt, /Do not copy identity-sheet layout/i);
+  assert.match(result.prompt, /shattered portrait/i);
+  assert.match(result.prompt, /Do not generate a different person/i);
+});
+
+test('cover source images fill missing urls from completed identity siblings', () => {
+  const resolved = resolveReferenceSourceImages(
+    {
+      category: 'APP_COVER',
+      label: 'Capa da série',
+      metadata: {
+        sourceImages: [
+          { index: 1, label: 'Marta', referenceId: 'character-marta' },
+          { index: 2, label: 'Helena', referenceId: 'character-helena' },
+        ],
+      },
+    },
+    [
+      {
+        id: 'character-marta',
+        label: 'Marta',
+        category: 'CHARACTER_MASTER',
+        publicUrl: 'https://cdn.example.com/marta.png',
+        status: 'COMPLETED',
+      },
+      {
+        id: 'character-helena',
+        label: 'Helena',
+        category: 'CHARACTER_MASTER',
+        publicUrl: 'https://cdn.example.com/helena.png',
+        status: 'COMPLETED',
+      },
+    ],
+  );
+
+  assert.equal(resolved.length, 2);
+  assert.equal(resolved[0].url, 'https://cdn.example.com/marta.png');
+  assert.equal(resolved[1].url, 'https://cdn.example.com/helena.png');
+  assert.equal(resolved[0].index, 1);
 });
 
 test('a short supplied brief is incorporated instead of replacing the contract', () => {

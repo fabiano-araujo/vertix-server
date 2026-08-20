@@ -2,7 +2,10 @@ import crypto from 'crypto';
 import sharp from 'sharp';
 
 import { prisma } from './prisma';
-import { compileReferenceImagePrompt } from './reference-image-prompt.service';
+import {
+  compileReferenceImagePrompt,
+  resolveReferenceSourceImages,
+} from './reference-image-prompt.service';
 import seriesCatalogService from './series-catalog.service';
 
 export const REFERENCE_IMAGE_JOB_TYPE = 'CODEX_GENERATE_REFERENCE_IMAGES';
@@ -361,6 +364,7 @@ export const getReferenceImageJobManifest = async (
       status: item.status,
       publicUrl: item.publicUrl,
       error: item.error,
+      sourceImages: resolveReferenceSourceImages(item, output.items),
     })),
   };
 };
@@ -554,6 +558,7 @@ export const buildReferenceImageTaskPrompt = (
   `API Vertix: ${apiBaseUrl.replace(/\/$/, '')}`,
   `Token do job: ${capabilityToken}`,
   'Gere as imagens reais com a skill $imagegen e envie cada arquivo para a API imediatamente quando terminar.',
+  'Se o manifesto ou o helper sources listar sourceImages, baixe essas fotos e passe cada arquivo como imagem de entrada do $imagegen na ordem Image 1, Image 2, para preservar a identidade.',
   'Continue ate concluir ou registrar a falha de todas as referencias. Nao apenas escreva prompts.',
 ].join('\n');
 
