@@ -72,6 +72,32 @@ const asEpisodeNumber = (value: unknown): number | null => {
   return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
 };
 
+const compactCastLooksCatalog = (characters: unknown): JsonMap[] => {
+  if (!Array.isArray(characters)) return [];
+  return characters.map((item) => {
+    const character = item && typeof item === 'object' && !Array.isArray(item)
+      ? item as JsonMap
+      : {};
+    const looks = Array.isArray(character.looks) ? character.looks : [];
+    return {
+      id: String(character.reference_id || character.id || ''),
+      name: String(character.name || ''),
+      looks: looks.map((lookItem) => {
+        const look = lookItem && typeof lookItem === 'object' && !Array.isArray(lookItem)
+          ? lookItem as JsonMap
+          : {};
+        return {
+          id: String(look.id || 'default'),
+          label: String(look.label || ''),
+          wardrobe: String(look.wardrobe || ''),
+          needed_because: String(look.needed_because || ''),
+          primary: look.primary === true || look.kind === 'default',
+        };
+      }),
+    };
+  });
+};
+
 const withoutEditorSnapshot = (project: JsonMap): JsonMap => {
   const bible =
     project.seriesBible && typeof project.seriesBible === 'object'
@@ -175,6 +201,7 @@ const compactProjectForAction = (
       reserved_reveals: seasonContext.locked_reveals || bible.reserved_reveals,
     },
     episode,
+    castLooksCatalog: compactCastLooksCatalog(bible.characters),
     seasonContext,
     lockedEpisode: {
       number: wanted,
@@ -232,6 +259,7 @@ const compactProjectForStorySheets = (source: JsonMap): JsonMap => {
       environments: bible.environments,
       props: bible.props,
       episode_cards: episodeCards,
+      episode_scripts: compactEpisodeScriptsForLooks(bible.episode_scripts),
     },
     episodes: episodes.map((item: any) => ({
       number: item?.number,
@@ -241,6 +269,24 @@ const compactProjectForStorySheets = (source: JsonMap): JsonMap => {
     })),
     references: source.references,
   };
+};
+
+const compactEpisodeScriptsForLooks = (value: unknown): JsonMap[] => {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 24).map((script: any) => ({
+    episode: script?.episode,
+    title: script?.title,
+    scenes: Array.isArray(script?.scenes)
+      ? script.scenes.slice(0, 8).map((scene: any) => ({
+          scene: scene?.scene,
+          location: scene?.location,
+          time_of_day: scene?.time_of_day,
+          interior_exterior: scene?.interior_exterior,
+          cast: scene?.cast,
+          story: String(scene?.story || scene?.dramatic_beat || '').slice(0, 400),
+        }))
+      : [],
+  }));
 };
 
 const shotTimingFromProject = (project: JsonMap) => {
@@ -292,6 +338,26 @@ EPISODE_NUMBER: ${request.episodeNumber ?? 'not applicable'}
 USER_INSTRUCTION: ${request.instruction?.trim() || 'none'}
 `;
 
+const characterIdentityContract = `
+CHARACTER IDENTITY CARD: write appearance as a labeled card in the project language, one field per line:
+Altura: [cm]
+Proporção cabeça-corpo: [7.5 or 8 cabeças]
+Etnia: [ancestry + country, e.g. Europeia do Sul (portuguesa)] — this replaces the old "Origem:" opener and MUST still declare visible ancestry; characters are NOT default Brazilian
+Compleição: [body, posture, one lived-in detail from their work or life]
+Cabelo: [color + architecture + how it is worn in the DEFAULT look]
+Traços faciais: [face shape, brows, eyes, nose, mouth, one landmark]
+Roupa e adereços: [complete DEFAULT wardrobe — the visual lock for most scenes]
+Also fill appearance_card with the same data as an object: height_cm (number), head_body_ratio, ethnicity, build, hair, facial_features, clothing.
+Personality: 4-5 short distinctive tags of behavior and contradiction in the project language (register: "protetora feroz", "orgulhosa ao ponto de teimosa", "língua afiada sob pressão", "ternura escondida", "workaholic"). Forbidden catalog adjectives: forte, misterioso, determinado, leal, inteligente, bonito.
+
+LOOKS / VISUALS are script-driven, never a costume template:
+- looks[0] is always {id:"default", label:"Aparência padrão", kind:"default", primary:true, wardrobe: same as clothing}. This is Image 1 / Principal.
+- Extra looks ONLY when the logline, roles, episode_cards or episode_scripts require a costume the default wardrobe cannot cover (school uniform, chef whites vs home clothes, work dinner, hospital, mourning, disguise). Name the look after that story need.
+- NEVER auto-add "casual", "estado íntimo", "confronto final", "variação formal" or "variação de crise". Casual-at-home exists only if domestic scenes actually need a different outfit.
+- Protagonist and cover/opposing faces may receive 0–3 extra looks if the series needs them. Supporting/secondary characters usually have ONLY the default look. Give a secondary an extra look only when a specific scene makes the default costume impossible.
+- Each extra look: {id, label, kind:"wardrobe", needed_because:"which episodes/scenes", wardrobe:"clothes/hair-styling/handheld props only", prompt:"Keep the character from image 1 unchanged. Change the outfit to: <wardrobe in the project language>"}. Face, age, body and ethnicity stay locked to Image 1.
+`;
+
 const bibleContract = `
 Create the series title, contract, characters, environments, props and references. Do not create episode cards, episodes, hook_chain, season architecture, or spine yet.
 The premise itself must generate ongoing tension (power imbalance, forbidden proximity, a ticking claim, or a structural bind). Do not rely on misunderstandings that a single conversation would dissolve.
@@ -299,12 +365,13 @@ Keep the speaking core to 2-4 characters. Write for 9:16 close-ups and a cold vi
 CAST DESIGN (method of famous series and films; never copy titles, faces, names or likenesses):
 1. FREEZE-FRAME TEST: in a paused 9:16 close-up the viewer must know who is who by hair silhouette + one wardrobe color. No two speaking characters share the same hair architecture or color lane. Forbidden default: long dark straight hair + black blazer + oval pretty face.
 2. ROMANTIC / COVER-FACE CONTRAST: protagonist vs love interest or opposing cover face must contrast — different hair-color family, different silhouette, different temperature (ice-glass vs sun-heat, or quiet-old-money vs street-voltage). Classic pairing method; original people only.
-3. ORIGEM: each character.appearance MUST open with "Origem: [país]. Traços visíveis: [pele, olhos, cabelo desta origem]." Characters are NOT default Brazilian. Vary across Korea, Japan, China, Philippines, Thailand, Mexico, Colombia, Argentina, Nigeria, Ethiopia, Egypt, Italy, France, Spain, Portugal, Greece, Turkey, Lebanon, India, Sweden, Ireland, UK, Germany, USA and Brazil. Brazil is one option, not the default.
+3. ORIGEM / ETNIA: character.appearance_card.ethnicity and the Etnia line MUST name country plus visible ancestry (skin, eyes, hair of that origin). Characters are NOT default Brazilian. Vary across Korea, Japan, China, Philippines, Thailand, Mexico, Colombia, Argentina, Nigeria, Ethiopia, Egypt, Italy, France, Spain, Portugal, Greece, Turkey, Lebanon, India, Sweden, Ireland, UK, Germany, USA and Brazil. Brazil is one option, not the default. Do not open appearance with a separate "Origem:" line; Etnia carries it.
 4. NAMES: given name + family name that belong to that country. Ban repeating Costa, Silva, Menezes, Ventura, Tavares, Oliveira. Dialogue stays in the project language even when the character is not Brazilian.
-5. PROTAGONIST (the person we follow): camera-attractive, but protagonist first — not a catalog gata/galã. They are the Engine: a specific want they would make a costly choice for; a tag stack readable in one glance (job + social position + ONE contrast). Personality is 3-4 verbs of how they act under pressure (refuses, bargains, hides, attacks), not adjectives like "forte, misterioso, determinado". Face looks mid-decision, eyes thinking, body about to act. FORBIDDEN CLICHÉ STACK: ice CEO, chosen-one glow, Cinderella intern, secret billionaire, tragic-orphan eyes, vacant model stare. One private cost is enough.
+5. PROTAGONIST (the person we follow): camera-attractive, but protagonist first — not a catalog gata/galã. They are the Engine: a specific want they would make a costly choice for; a tag stack readable in one glance (job + social position + ONE contrast). Personality tags follow CHARACTER IDENTITY CARD (distinctive behavior, not "forte, misterioso, determinado"). Face looks mid-decision, eyes thinking, body about to act. FORBIDDEN CLICHÉ STACK: ice CEO, chosen-one glow, Cinderella intern, secret billionaire, tragic-orphan eyes, vacant model stare. One private cost is enough.
 6. COVER FACES (love interest / opposing): still galã/gata, magnetic, fitness-capable, with a cinematic temperature. They want something of their own. Do not make them a smolder-only poster.
 7. SUPPORTING CAST: beautiful only when the story needs it. Each still gets ONE unforgettable visual hook readable on a phone (glasses, always the same jacket, a specific bag, a gray streak, a ring they never remove), like memorable TV supporting characters.
 8. Include age, face shape, nose, jaw, eyes, hair color AND architecture, body, outfit lane, landmark. visual_contract names the silhouette + owned color.
+${characterIdentityContract}
 result shape:
 {
   "title": "original series title, 2 to 6 words, never just the user's raw idea or a genre word like Romance",
@@ -317,7 +384,7 @@ result shape:
     "big_expectation": "audience promise / emotional fantasy",
     "emotional_fantasy": "the feeling the viewer binge-pays to keep",
     "differentiating_mechanism": "one specific engine that is not a generic CEO/secret-baby copy",
-    "characters": [{"reference_id":"character-id","name":"...","role":"...","appearance":"...","personality":["..."],"goal":"...","wound":"...","arc":"...","visual_contract":"..."}],
+    "characters": [{"reference_id":"character-id","name":"...","role":"...","appearance":"labeled identity card","appearance_card":{"height_cm":167,"head_body_ratio":"7.5 cabeças","ethnicity":"...","build":"...","hair":"...","facial_features":"...","clothing":"..."},"personality":["short distinctive tag"],"goal":"...","wound":"...","arc":"...","visual_contract":"...","looks":[{"id":"default","label":"Aparência padrão","kind":"default","primary":true,"wardrobe":"same as clothing"}]}],
     "environments": [{"reference_id":"location-id","name":"...","description":"...","world_visual_lock":"shared world DNA copied across every location in this series","permanent_elements":["..."],"lighting_contract":"...","continuity_rules":["..."]}],
     "props": [{"reference_id":"prop-id","name":"...","description":"...","story_function":"...","continuity_rules":["..."]}]
   },
@@ -333,14 +400,16 @@ Create only story sheets for the SCOPE in USER_INSTRUCTION.
 result shape:
 {
   "seriesBiblePatch": {
-    "characters": [{"reference_id":"...","name":"...","role":"...","appearance":"...","personality":["..."],"dramatic_function":"...","goal":"...","wound":"...","arc":"...","visual_contract":"..."}],
+    "characters": [{"reference_id":"...","name":"...","role":"...","appearance":"labeled identity card","appearance_card":{"height_cm":167,"head_body_ratio":"7.5 cabeças","ethnicity":"...","build":"...","hair":"...","facial_features":"...","clothing":"..."},"personality":["short distinctive tag"],"dramatic_function":"...","goal":"...","wound":"...","arc":"...","visual_contract":"...","looks":[{"id":"default","label":"Aparência padrão","kind":"default","primary":true,"wardrobe":"same as clothing"}]}],
     "environments": [{"reference_id":"...","name":"...","description":"...","world_visual_lock":"shared world DNA copied across every location in this series","permanent_elements":["..."],"lighting_contract":"...","continuity_rules":["..."]}],
     "props": [{"reference_id":"...","name":"...","description":"...","story_function":"...","continuity_rules":["..."]}]
   },
   "references": [{"id":"same reference_id","label":"...","category":"CHARACTER_MASTER or LOCATION_MASTER or PROP_MASTER","description":"canonical image prompt-ready description","canonical":true,"metadata":{}}]
 }
 Reuse names, roles and reference_ids already in PROJECT_DATA_JSON. Expand them into complete visual and dramatic sheets. If SCOPE is characters, omit environments and props. If SCOPE is locations, omit characters and props. If SCOPE is props, omit characters and environments. For SCOPE all, include at least 4 characters, 3 environments and 3 props. If USER_INSTRUCTION contains REFERENCE_ID, rewrite only that one sheet: return only that one entry in the matching array and only that one reference. Do not invent replacements for the other sheets. Write in the project language.
-When expanding characters, rewrite appearance into a casting identity card that starts with country of origin and visible ancestry. Invent or keep names that match that country; do not default to Brazilian names. Apply CAST DESIGN: freeze-frame silhouette, romantic-pair contrast, protagonist-as-engine (want + job tag + one contrast, mid-decision face, no cliché stack), cover faces as magnetic people with their own want, one phone-readable hook per supporting character. The protagonist is camera-attractive but not a catalog clone. Supporting characters are beautiful only if the role needs it, but they must still be visually unmistakable. Never copy a real actor.
+When expanding characters, rewrite appearance into the labeled identity card and fill appearance_card plus looks. Invent or keep names that match that country; do not default to Brazilian names. Apply CAST DESIGN: freeze-frame silhouette, romantic-pair contrast, protagonist-as-engine (want + job tag + one contrast, mid-decision face, no cliché stack), cover faces as magnetic people with their own want, one phone-readable hook per supporting character. The protagonist is camera-attractive but not a catalog clone. Supporting characters are beautiful only if the role needs it, but they must still be visually unmistakable. Never copy a real actor.
+${characterIdentityContract}
+Read episode_scripts and episode_cards when present: extra looks come from costume changes the story actually needs, not from a template.
 When expanding environments, first extract THIS series' shared world from background, visual_style, logline and every existing environment. Do not default every series to the same city type. Write description so it starts with one sentence of shared world DNA, then the specific place. Fill world_visual_lock with the same DNA on every location. permanent_elements must include 2-4 world-shared materials or infrastructure plus this place's own landmarks. Interiors must keep the world visible through a window, doorway, street or matching construction. A luxury or poorer contrast is valid only if the story needs it, and the surrounding world remains readable. Never write a generic isolated set (stock rustic shop, Hollywood alley, catalog hospital) that would not sit next to the sibling locations.
 `;
 
@@ -405,13 +474,15 @@ resultJson shape:
   "episodeScript": {
     "episode":1,"title":"...","version":1,"status":"DRAFT_REVIEW_REQUIRED","approved_by_user":false,
     "duration_seconds":60,"max_shot_duration_seconds":10,"scene_count":2,"shot_count":7,"display_script":"...",
-    "scenes":[{"episode":1,"scene":1,"title":"...","location_id":"...","location":"...","time_of_day":"NIGHT","interior_exterior":"INT","dramatic_beat":"...","cast_ids":["..."],"cast":["..."],"story":"...","status":"DRAFT_REVIEW_REQUIRED","shots":[{"number":1,"title":"...","duration_seconds":8,"status":"DRAFT_REVIEW_REQUIRED","final_state":"...","rows":[{"type":"action","text":"...","provider_text":"...","duration_seconds":2},{"type":"dialogue","line_id":"ep01-l001","speaker":"...","performance":"...","provider_performance":"...","text":"...","duration_seconds":4},{"type":"action","text":"...","provider_text":"...","duration_seconds":2}]}]}],
+    "scenes":[{"episode":1,"scene":1,"title":"...","location_id":"...","location":"...","time_of_day":"NIGHT","interior_exterior":"INT","dramatic_beat":"...","cast_ids":["..."],"cast":["..."],"cast_looks":{"character-id":"default"},"story":"...","status":"DRAFT_REVIEW_REQUIRED","shots":[{"number":1,"title":"...","duration_seconds":8,"status":"DRAFT_REVIEW_REQUIRED","final_state":"...","rows":[{"type":"action","text":"...","provider_text":"...","duration_seconds":2},{"type":"dialogue","line_id":"ep01-l001","speaker":"...","performance":"...","provider_performance":"...","text":"...","duration_seconds":4},{"type":"action","text":"...","provider_text":"...","duration_seconds":2}]}]}],
     "episode_dialogue_master":{"status":"DRAFT_REVIEW_REQUIRED","language":"project language","lines":[],"voices":{}},
     "quality_gate":{"decision":"PASS_HUMAN_REVIEW_REQUIRED","duration_sums":"PASS","dialogue_ownership":"PASS","scene_and_shot_order":"PASS","cliffhanger_cut":"PASS","human_approval":"REQUIRED"},
     "production_status":"BLOCKED_BY_SCRIPT_APPROVAL"
   }
 }
 Use contiguous shot numbers across scenes. Each shot duration must follow the project's shot timing rule in PROJECT_DATA_JSON: if shot_duration_mode is FIXED, every shot lasts exactly max_shot_duration_seconds; otherwise each shot is between 1 and max_shot_duration_seconds. Every shot's row durations must sum exactly to that shot. All shot durations must sum exactly to the episode duration. Include actions, performable dialogue, cast, location, dramatic beat, and a final irreversible cliffhanger shot. Follow BEAT_ENGINE_JSON: detonating cold open by 3s, friction as visible conflict, spike that re-prices the scene, button in the last 5-10s. The first scene must realize this episode's opening_pickup from hook_chain. The last shot must stage final_hook, cut before answering unresolved_questions, and withhold THIS_SPINE_SLOT.must_not plus LOCKED_REVEALS. Do not create production video prompts or takes yet.
+
+WARDROBE LOCK: For each scene, set cast_looks as {"character-id":"look-id"} using ONLY look ids from that character in CAST_LOOKS_CATALOG_JSON / characters.looks. Use "default" or omit the character when they wear the standard appearance (looks[0]). Pick an extra look (home/casual, work dinner, school, etc.) only when location, story, or action makes the default costume impossible. Action and costume description in the scene must match that look's wardrobe — never write a chef apron in a home look, or home clothes in the default work look. Supporting characters usually stay on default.
 
 LOCKED STORY RULE: Dramatize only lockedEpisode / the selected episode outline. Keep the same characters, locations, and plot. If the outline is a cafeteria reunion, do not invent palaces, kings, or a different cast.
 `;
@@ -424,7 +495,7 @@ resultJson shape:
   "takes":[{"number":1,"title":"Cena 1 · Shot 1 · ...","durationSeconds":8,"aiShortCore":"dynamic natural-language production description for only this shot, including camera-visible action and exact spoken dialogue from the locked script","audioPrompt":"speaker/voice/performance locks and exact dialogue; no music unless script requires it","transitionMode":"EPISODE_START or MATCH_ON_ACTION","usePreviousLastFrame":false,"generateSeedanceAudio":true,"referenceIds":["..."],"notes":"continuity and final-state note"}],
   "productionPackage":{"status":"PROMPTS_READY_FOR_REVIEW","delivery_mode":"episode_segment","duration_mode":"VARIABLE_UP_TO_LIMIT","prompt_contract":"ai_short_core_plus_code_style_preset_v1"}
 }
-Return one take for every script shot and preserve its exact duration. aiShortCore must not contain generic fixed cinematography, style, subtitle, watermark, anatomy, flicker, music, or negative-prompt boilerplate because Vertix appends those locks in code. Omit referenceIds; Vertix assigns them from the locked scene's cast, location and mentioned props so the uploaded @Image order matches the prompt.
+Return one take for every script shot and preserve its exact duration. aiShortCore must not contain generic fixed cinematography, style, subtitle, watermark, anatomy, flicker, music, or negative-prompt boilerplate because Vertix appends those locks in code. Omit referenceIds; Vertix assigns them from the locked scene's cast, the wardrobe in scene.cast_looks (or inferred look), location and mentioned props so the uploaded @Image order matches the prompt. Describe the character in the wardrobe of that scene look, not always the identity master.
 `;
 
 const reviseContract = `
@@ -1024,9 +1095,11 @@ Cold open must be freeze-frame clear at 3s. Cut 2 seconds early on the unanswere
   };
 
   await publish(12, `Planejando cenas do EP${episodeNumber} · ${title}...`, true);
+  const castLooksCatalog = compactCastLooksCatalog(bible.characters);
+  const wardrobeLock = `WARDROBE LOCK: Set scene.cast_looks to {"character-id":"look-id"} from CAST_LOOKS_CATALOG_JSON. Use default (or omit) for the standard appearance. Use an extra look only when this scene's location/story requires a different costume. Visible clothes in action text must match that look's wardrobe.`;
   const planResult = await generateJson(
     model,
-    `${commonContract(request)}\n${lockRule}\nPlan 2 to 4 scenes for this episode only. Scene duration_seconds must sum exactly to ${duration}. Use only locked characters and locations.\nresult shape: {"scene_plan":[{"scene":1,"title":"...","location":"...","location_id":"...","time_of_day":"DAY or NIGHT","interior_exterior":"INT or EXT","dramatic_beat":"...","cast":["..."],"cast_ids":["..."],"duration_seconds":30,"story":"..."}]}\nLOCKED_STORY_JSON:\n${JSON.stringify({
+    `${commonContract(request)}\n${lockRule}\n${wardrobeLock}\nPlan 2 to 4 scenes for this episode only. Scene duration_seconds must sum exactly to ${duration}. Use only locked characters and locations.\nresult shape: {"scene_plan":[{"scene":1,"title":"...","location":"...","location_id":"...","time_of_day":"DAY or NIGHT","interior_exterior":"INT or EXT","dramatic_beat":"...","cast":["..."],"cast_ids":["..."],"cast_looks":{"character-id":"default"},"duration_seconds":30,"story":"..."}]}\nCAST_LOOKS_CATALOG_JSON:\n${JSON.stringify(castLooksCatalog)}\nLOCKED_STORY_JSON:\n${JSON.stringify({
       ...compact,
       lockedEpisode: locked,
     })}`,
@@ -1075,7 +1148,7 @@ Cold open must be freeze-frame clear at 3s. Cut 2 seconds early on the unanswere
     await publish(pct, `Escrevendo a cena ${plannedScene.scene}/${planned.length}...`, true);
     const sceneResult = await generateJson(
       model,
-      `${commonContract(request)}\n${episodeScriptContract}\n${lockRule}\nWrite ONLY scene ${plannedScene.scene} of ${planned.length} for episode ${episodeNumber}. Scene duration must be exactly ${plannedScene.duration_seconds}s. Shot numbers must start at ${shotNumber} and be contiguous. ${shotFixed ? `Each shot must last exactly ${maxShot}s.` : `Each shot 1-${maxShot}s.`} Row durations must sum to the shot. Return result shape: {"scene":{"episode":${episodeNumber},"scene":${plannedScene.scene},"title":${JSON.stringify(plannedScene.title || '')},"location_id":${JSON.stringify(plannedScene.location_id || '')},"location":${JSON.stringify(plannedScene.location || '')},"time_of_day":${JSON.stringify(plannedScene.time_of_day || 'DAY')},"interior_exterior":${JSON.stringify(plannedScene.interior_exterior || 'INT')},"dramatic_beat":${JSON.stringify(plannedScene.dramatic_beat || '')},"cast_ids":${JSON.stringify(plannedScene.cast_ids || [])},"cast":${JSON.stringify(plannedScene.cast || [])},"story":${JSON.stringify(plannedScene.story || '')},"status":"DRAFT_REVIEW_REQUIRED","shots":[{"number":${shotNumber},"title":"...","duration_seconds":8,"status":"DRAFT_REVIEW_REQUIRED","final_state":"...","rows":[{"type":"action","text":"...","duration_seconds":2}]}]}}\nPREVIOUS_SCENES_JSON:\n${JSON.stringify(scriptBase.scenes)}\nSCENE_PLAN_JSON:\n${JSON.stringify(plannedScene)}\nLOCKED_STORY_JSON:\n${JSON.stringify({ ...compact, lockedEpisode: locked })}`,
+      `${commonContract(request)}\n${episodeScriptContract}\n${lockRule}\n${wardrobeLock}\nWrite ONLY scene ${plannedScene.scene} of ${planned.length} for episode ${episodeNumber}. Scene duration must be exactly ${plannedScene.duration_seconds}s. Shot numbers must start at ${shotNumber} and be contiguous. ${shotFixed ? `Each shot must last exactly ${maxShot}s.` : `Each shot 1-${maxShot}s.`} Row durations must sum to the shot. Return result shape: {"scene":{"episode":${episodeNumber},"scene":${plannedScene.scene},"title":${JSON.stringify(plannedScene.title || '')},"location_id":${JSON.stringify(plannedScene.location_id || '')},"location":${JSON.stringify(plannedScene.location || '')},"time_of_day":${JSON.stringify(plannedScene.time_of_day || 'DAY')},"interior_exterior":${JSON.stringify(plannedScene.interior_exterior || 'INT')},"dramatic_beat":${JSON.stringify(plannedScene.dramatic_beat || '')},"cast_ids":${JSON.stringify(plannedScene.cast_ids || [])},"cast":${JSON.stringify(plannedScene.cast || [])},"cast_looks":${JSON.stringify(plannedScene.cast_looks || {})},"story":${JSON.stringify(plannedScene.story || '')},"status":"DRAFT_REVIEW_REQUIRED","shots":[{"number":${shotNumber},"title":"...","duration_seconds":8,"status":"DRAFT_REVIEW_REQUIRED","final_state":"...","rows":[{"type":"action","text":"...","duration_seconds":2}]}]}}\nPREVIOUS_SCENES_JSON:\n${JSON.stringify(scriptBase.scenes)}\nSCENE_PLAN_JSON:\n${JSON.stringify(plannedScene)}\nCAST_LOOKS_CATALOG_JSON:\n${JSON.stringify(castLooksCatalog)}\nLOCKED_STORY_JSON:\n${JSON.stringify({ ...compact, lockedEpisode: locked })}`,
       3200,
       abortController,
     );
@@ -1091,6 +1164,8 @@ Cold open must be freeze-frame clear at 3s. Cut 2 seconds early on the unanswere
       scene: Number(plannedScene.scene) || index + 1,
       title: scene.title || plannedScene.title,
       location: scene.location || plannedScene.location,
+      location_id: scene.location_id || plannedScene.location_id,
+      cast_looks: scene.cast_looks || plannedScene.cast_looks || {},
       shots,
       status: 'DRAFT_REVIEW_REQUIRED',
     };

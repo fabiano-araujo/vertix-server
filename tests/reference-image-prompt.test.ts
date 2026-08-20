@@ -6,6 +6,16 @@ import {
   compileReferenceImagePrompt,
 } from '../src/services/reference-image-prompt.service';
 
+type PromptInput = Parameters<typeof compileReferenceImagePrompt>[0];
+
+// The face identity lock only ships inside the standard prompt; the hybrid sheet
+// keeps the approved facts plus the layout contract and nothing else.
+const compileLockedCharacterPrompt = (input: PromptInput) =>
+  compileReferenceImagePrompt({
+    ...input,
+    metadata: { ...(input.metadata || {}), visual_reference_mode: 'standard' },
+  });
+
 test('adult character uses the complete hybrid reference contract by default', () => {
   const result = compileReferenceImagePrompt({
     label: 'Isabela Costa',
@@ -26,6 +36,31 @@ test('adult character uses the complete hybrid reference contract by default', (
   assert.match(result.prompt, /terno preto sóbrio/);
   assert.match(result.prompt, /Isabela Costa/);
   assert.doesNotMatch(result.prompt, /snowy or cold neutral outdoor background/);
+});
+
+test('the hybrid sheet carries only the approved facts and the layout contract', () => {
+  const result = compileReferenceImagePrompt({
+    label: 'Lys Arven',
+    category: 'CHARACTER_MASTER',
+    description: 'Mulher de 29 anos, cabelo escuro cacheado com mecha branca, casaco encerado escuro.',
+    metadata: { role: 'Protagonista' },
+  });
+
+  assert.equal(result.visualReferenceMode, 'hybrid_face_compat');
+  assert.equal(result.promptMetadata, undefined);
+  assert.match(result.prompt, /APPROVED CHARACTER FACTS/);
+  assert.match(result.prompt, /mecha branca/);
+  assert.doesNotMatch(result.prompt, /FACE IDENTITY LOCK/);
+  assert.doesNotMatch(result.prompt, /ORIGIN LOCK/);
+  assert.doesNotMatch(result.prompt, /ATTRACTIVENESS REGISTER/);
+  assert.doesNotMatch(result.prompt, /ANTI-SAMEFACE/);
+  assert.doesNotMatch(result.prompt, /PHONE-SCREEN HOOK/);
+
+  // The layout contract must dominate the prompt, not compete with casting
+  // directives: everything before LEFT 70% stays a short preamble.
+  const preamble = result.prompt.indexOf('LEFT 70%');
+  assert.ok(preamble > 0);
+  assert.ok(preamble < 600, `preamble too long: ${preamble} chars`);
 });
 
 test('explicit child character uses the standard photoreal reference mode', () => {
@@ -247,7 +282,7 @@ test('a hospital series does not receive favela construction language', () => {
 });
 
 test('character prompts lock a specific face instead of the default AI beauty composite', () => {
-  const result = compileReferenceImagePrompt({
+  const result = compileLockedCharacterPrompt({
     label: 'Lívia Menezes',
     category: 'CHARACTER_MASTER',
     description: 'Mulher brasileira de 28 anos, pele caramelo, cabelo cacheado, olhos verdes, terno bege.',
@@ -261,17 +296,17 @@ test('character prompts lock a specific face instead of the default AI beauty co
 });
 
 test('cast members receive deterministic but different craniofacial packages', () => {
-  const livia = compileReferenceImagePrompt({
+  const livia = compileLockedCharacterPrompt({
     label: 'Lívia Menezes',
     category: 'CHARACTER_MASTER',
     description: 'Mulher brasileira de 28 anos, terno bege.',
   });
-  const diego = compileReferenceImagePrompt({
+  const diego = compileLockedCharacterPrompt({
     label: 'Diego Ventura',
     category: 'CHARACTER_MASTER',
     description: 'Homem brasileiro de 30 anos, camisa azul.',
   });
-  const liviaAgain = compileReferenceImagePrompt({
+  const liviaAgain = compileLockedCharacterPrompt({
     label: 'Lívia Menezes',
     category: 'CHARACTER_MASTER',
     description: 'Mulher brasileira de 28 anos, terno bege.',
@@ -288,7 +323,7 @@ test('cast members receive deterministic but different craniofacial packages', (
 });
 
 test('named craniofacial facts are preserved instead of a hashed geometry', () => {
-  const result = compileReferenceImagePrompt({
+  const result = compileLockedCharacterPrompt({
     label: 'Rafaela Costa',
     category: 'CHARACTER_MASTER',
     description: 'Rosto em formato de coração, nariz pequeno e respingado, queixo recuado, olhos hooded afastados.',
@@ -300,7 +335,7 @@ test('named craniofacial facts are preserved instead of a hashed geometry', () =
 });
 
 test('a protagonist defaults to protagonist-camera, not catalog beauty', () => {
-  const result = compileReferenceImagePrompt({
+  const result = compileLockedCharacterPrompt({
     label: 'Lívia Menezes',
     category: 'CHARACTER_MASTER',
     description: 'Mulher brasileira de 28 anos, terno bege.',
@@ -322,13 +357,13 @@ test('a protagonist defaults to protagonist-camera, not catalog beauty', () => {
 });
 
 test('two leads receive different hair or body packages', () => {
-  const livia = compileReferenceImagePrompt({
+  const livia = compileLockedCharacterPrompt({
     label: 'Lívia Menezes',
     category: 'CHARACTER_MASTER',
     description: 'Mulher brasileira de 28 anos, terno bege.',
     metadata: { role: 'Protagonista' },
   });
-  const nina = compileReferenceImagePrompt({
+  const nina = compileLockedCharacterPrompt({
     label: 'Nina Rocha',
     category: 'CHARACTER_MASTER',
     description: 'Mulher brasileira de 27 anos, vestido vermelho.',
@@ -340,7 +375,7 @@ test('two leads receive different hair or body packages', () => {
 });
 
 test('a protagonist without a country receives an explicit origin lock', () => {
-  const result = compileReferenceImagePrompt({
+  const result = compileLockedCharacterPrompt({
     label: 'Sora Kim',
     category: 'CHARACTER_MASTER',
     description: 'Mulher de 28 anos, terno bege.',
@@ -353,13 +388,13 @@ test('a protagonist without a country receives an explicit origin lock', () => {
 });
 
 test('two characters receive different origin packages', () => {
-  const a = compileReferenceImagePrompt({
+  const a = compileLockedCharacterPrompt({
     label: 'Sora Kim',
     category: 'CHARACTER_MASTER',
     description: 'Mulher de 28 anos, terno bege.',
     metadata: { role: 'Protagonista' },
   });
-  const b = compileReferenceImagePrompt({
+  const b = compileLockedCharacterPrompt({
     label: 'Amara Okoye',
     category: 'CHARACTER_MASTER',
     description: 'Mulher de 27 anos, vestido vermelho.',
@@ -373,7 +408,7 @@ test('two characters receive different origin packages', () => {
 });
 
 test('an already named Brazilian origin is preserved', () => {
-  const result = compileReferenceImagePrompt({
+  const result = compileLockedCharacterPrompt({
     label: 'Lívia Menezes',
     category: 'CHARACTER_MASTER',
     description: 'Mulher brasileira de 28 anos, terno bege.',
@@ -385,7 +420,7 @@ test('an already named Brazilian origin is preserved', () => {
 });
 
 test('named ruiva curls are preserved instead of a hashed hair package', () => {
-  const result = compileReferenceImagePrompt({
+  const result = compileLockedCharacterPrompt({
     label: 'Helena Vale',
     category: 'CHARACTER_MASTER',
     description: 'Protagonista ruiva de cabelo cacheado, corpo fitness, terno bege.',
@@ -399,7 +434,7 @@ test('named ruiva curls are preserved instead of a hashed hair package', () => {
 });
 
 test('an opposing force also uses lead camera beauty', () => {
-  const result = compileReferenceImagePrompt({
+  const result = compileLockedCharacterPrompt({
     label: 'Diego Ventura',
     category: 'CHARACTER_MASTER',
     description: 'Homem brasileiro de 30 anos, camisa azul.',
@@ -413,13 +448,13 @@ test('an opposing force also uses lead camera beauty', () => {
 });
 
 test('two leads still receive different craniofacial packages', () => {
-  const livia = compileReferenceImagePrompt({
+  const livia = compileLockedCharacterPrompt({
     label: 'Lívia Menezes',
     category: 'CHARACTER_MASTER',
     description: 'Mulher brasileira de 28 anos, terno bege.',
     metadata: { role: 'Protagonista' },
   });
-  const diego = compileReferenceImagePrompt({
+  const diego = compileLockedCharacterPrompt({
     label: 'Diego Ventura',
     category: 'CHARACTER_MASTER',
     description: 'Homem brasileiro de 30 anos, camisa azul.',
@@ -433,7 +468,7 @@ test('two leads still receive different craniofacial packages', () => {
 });
 
 test('supporting cast follows the story instead of a random ordinary face', () => {
-  const result = compileReferenceImagePrompt({
+  const result = compileLockedCharacterPrompt({
     label: 'Rafaela Costa',
     category: 'CHARACTER_MASTER',
     description: 'Mulher de 27 anos, jaqueta preta.',
@@ -446,7 +481,7 @@ test('supporting cast follows the story instead of a random ordinary face', () =
 });
 
 test('an ordinary-looking brief keeps the ordinary attractiveness register', () => {
-  const result = compileReferenceImagePrompt({
+  const result = compileLockedCharacterPrompt({
     label: 'Marcos Tavares',
     category: 'CHARACTER_MASTER',
     description: 'Homem de 41 anos, pessoa comum, não tão bonito, rosto comum de escritório.',
@@ -474,7 +509,7 @@ test('a compiled standard character prompt remains standard when reused', () => 
 });
 
 test('leads lock cinematic presence, silhouette, wardrobe lane and a contradiction', () => {
-  const result = compileReferenceImagePrompt({
+  const result = compileLockedCharacterPrompt({
     label: 'Sora Kim',
     category: 'CHARACTER_MASTER',
     description: 'Mulher de 28 anos.',
@@ -496,13 +531,13 @@ test('leads lock cinematic presence, silhouette, wardrobe lane and a contradicti
 });
 
 test('two leads receive different silhouette or wardrobe packages', () => {
-  const a = compileReferenceImagePrompt({
+  const a = compileLockedCharacterPrompt({
     label: 'Sora Kim',
     category: 'CHARACTER_MASTER',
     description: 'Mulher de 28 anos, terno bege.',
     metadata: { role: 'Protagonista' },
   });
-  const b = compileReferenceImagePrompt({
+  const b = compileLockedCharacterPrompt({
     label: 'Nina Rocha',
     category: 'CHARACTER_MASTER',
     description: 'Mulher de 27 anos, vestido vermelho.',
@@ -514,7 +549,7 @@ test('two leads receive different silhouette or wardrobe packages', () => {
 });
 
 test('a named Swedish origin keeps a northern-plausible hair color', () => {
-  const result = compileReferenceImagePrompt({
+  const result = compileLockedCharacterPrompt({
     label: 'Elsa Berg',
     category: 'CHARACTER_MASTER',
     description: 'Mulher sueca de 29 anos.',
@@ -531,7 +566,7 @@ test('a named Swedish origin keeps a northern-plausible hair color', () => {
 });
 
 test('supporting cast still receives a distinctive silhouette and phone hook', () => {
-  const result = compileReferenceImagePrompt({
+  const result = compileLockedCharacterPrompt({
     label: 'Rafaela Costa',
     category: 'CHARACTER_MASTER',
     description: 'Mulher de 27 anos, jaqueta preta.',
@@ -544,4 +579,26 @@ test('supporting cast still receives a distinctive silhouette and phone hook', (
   assert.ok(result.promptMetadata?.silhouetteVariant);
   assert.ok(result.promptMetadata?.phoneHookVariant);
   assert.doesNotMatch(result.prompt, /LEAD CONTRADICTION/);
+});
+
+test('wardrobe look compiles to an image-1 outfit change, not a new identity sheet', () => {
+  const result = compileReferenceImagePrompt({
+    label: 'Marta-jantar de trabalho',
+    category: 'CHARACTER_LOOK',
+    description:
+      'Keep the character from image 1 unchanged. Change the outfit to: blusa de seda verde-garrafa',
+    metadata: {
+      parent_character_id: 'character-marta',
+      look_kind: 'wardrobe',
+      wardrobe: 'blusa de seda verde-garrafa',
+      appearance: 'Altura: 167cm. Etnia: Europeia do Sul (portuguesa).',
+    },
+  });
+
+  assert.equal(result.visualReferenceMode, 'standard_ultra_photoreal');
+  assert.match(result.prompt, /Keep the character from image 1 unchanged/);
+  assert.match(result.prompt, /blusa de seda verde-garrafa/);
+  assert.match(result.prompt, /IMAGE 1 is the canonical identity sheet/);
+  assert.doesNotMatch(result.prompt, /LEFT 70%/);
+  assert.doesNotMatch(result.prompt, /BROKEN PHOTOGRAPHIC PORTRAIT/);
 });

@@ -132,6 +132,7 @@ const characterFacts = (input: ReferenceImagePromptInput): string => {
       : cleanText(input.prompt, 4_000),
     ...selectedMetadataFacts(metadata, [
       ['appearance', 'visual_lock', 'visualLock'],
+      ['appearance_card', 'appearanceCard'],
       ['visual_contract', 'visualContract'],
       ['outfit_lock', 'outfitLock', 'wardrobe'],
       ['origin', 'country', 'nationality', 'ancestry', 'ethnicity', 'pais', 'origem'],
@@ -139,6 +140,68 @@ const characterFacts = (input: ReferenceImagePromptInput): string => {
       ['role'],
     ]),
   ]).join(' ');
+};
+
+const isCharacterOutfitLook = (input: ReferenceImagePromptInput): boolean => {
+  const category = cleanText(input.category, 120).toUpperCase();
+  if (
+    category.includes('LOOK')
+    || category.includes('OUTFIT')
+    || category.includes('VARIANT')
+  ) {
+    return true;
+  }
+  const metadata = input.metadata || {};
+  const parent = metadata.parent_character_id ?? metadata.parentCharacterId
+    ?? metadata.parent_id ?? metadata.parentId;
+  if (cleanText(parent, 180)) return true;
+  const kind = cleanText(
+    metadata.look_kind ?? metadata.lookKind ?? metadata.kind,
+    80,
+  ).toLowerCase();
+  return kind === 'wardrobe' || kind === 'outfit' || kind === 'look';
+};
+
+const outfitLookInstruction = (input: ReferenceImagePromptInput): string => {
+  const metadata = input.metadata || {};
+  const supplied = [
+    cleanText(input.prompt, 4_000),
+    cleanText(input.description, 4_000),
+    cleanText(metadata.prompt, 4_000),
+  ].find((value) => value.toLowerCase().includes('keep the character from image 1'));
+  if (supplied) return supplied;
+  const wardrobe = readableValue(
+    metadataValue(metadata, ['wardrobe', 'outfit_lock', 'outfitLock', 'clothing']),
+    2_000,
+  );
+  return wardrobe
+    ? `Keep the character from image 1 unchanged. Change the outfit to: ${wardrobe}`
+    : 'Keep the character from image 1 unchanged. Change the outfit to the approved wardrobe for this look.';
+};
+
+const compileOutfitLookPrompt = (input: ReferenceImagePromptInput): string => {
+  const name = cleanText(input.label, 180);
+  const metadata = input.metadata || {};
+  const identity = uniqueFacts([
+    ...selectedMetadataFacts(metadata, [
+      ['appearance', 'visual_lock', 'visualLock'],
+      ['appearance_card', 'appearanceCard'],
+      ['origin', 'country', 'nationality', 'ancestry', 'ethnicity', 'pais', 'origem'],
+      ['age', 'age_range', 'ageRange'],
+    ]),
+  ]).join(' ')
+    || 'Preserve the approved face, age, body and ethnicity from image 1.';
+  const source = cleanText(
+    metadata.identity_source_url ?? metadata.identitySourceUrl,
+    500,
+  );
+  return `${outfitLookInstruction(input)}
+
+IMAGE 1 is the canonical identity sheet of ${name}${source ? ` (${source})` : ''}. Keep the same face, age, height, ethnicity, bone structure, body and hair identity. Change only clothes, shoes, accessories and any hair styling or handheld prop named in the outfit.
+
+IDENTITY FACTS TO PRESERVE: ${identity}
+
+Photorealistic live-action continuity photograph, full body visible, clean off-white studio, 3:2. Exactly one person. No new identity. No extra people. No text, logo or watermark.`;
 };
 
 const locationFacts = (input: ReferenceImagePromptInput): string => {
@@ -1345,15 +1408,12 @@ const compileHybridCharacterPrompt = (
 ): string => {
   const name = cleanText(input.label, 180);
   const facts = characterFacts(input) || 'Use only the approved identity and wardrobe facts supplied for this character.';
-  const identity = compileFaceIdentityLock(input);
   return `Create one clean horizontal 3:2 character identity sheet on an off-white
 background for the original fictional adult character ${name}. Put the exact name
 “${name}” once in large, correctly spelled, readable editorial type at the top,
 centered across the complete sheet.
 
 APPROVED CHARACTER FACTS — PRESERVE EXACTLY: ${facts}
-
-${identity.block}
 
 LEFT 70% — THREE FULL-BODY TURNAROUND VIEWS: show exactly three believable,
 unretouched, live-action color bodies at matching head-to-toe scale: (1)
@@ -1686,6 +1746,15 @@ export const compileReferenceImagePrompt = (
   }
 
   if (isCharacter) {
+    if (isCharacterOutfitLook(input)) {
+      const suppliedPrompt = cleanText(input.prompt, 20_000);
+      const alreadyCompiled = suppliedPrompt.toLowerCase().includes('image 1 is the canonical identity sheet');
+      return {
+        prompt: alreadyCompiled ? suppliedPrompt : compileOutfitLookPrompt(input),
+        promptContract: REFERENCE_IMAGE_PROMPT_CONTRACT,
+        visualReferenceMode: 'standard_ultra_photoreal',
+      };
+    }
     const canonicalPrompt = suppliedPromptLooksCanonical(suppliedPrompt);
     const visualReferenceMode = canonicalPrompt
       ? suppliedPrompt.toLowerCase().includes('left 70%')
@@ -1697,13 +1766,17 @@ export const compileReferenceImagePrompt = (
       : visualReferenceMode === 'hybrid_face_compat'
         ? compileHybridCharacterPrompt(input)
         : compileStandardCharacterPrompt(input);
+    // Only the standard prompt carries the face identity lock, so only it may
+    // report which casting packages were applied.
+    const usesFaceIdentityLock = !canonicalPrompt
+      && visualReferenceMode === 'standard_ultra_photoreal';
     return {
       prompt: compiledPrompt,
       promptContract: REFERENCE_IMAGE_PROMPT_CONTRACT,
       visualReferenceMode,
-      promptMetadata: canonicalPrompt
-        ? undefined
-        : compileFaceIdentityLock(input).metadata,
+      promptMetadata: usesFaceIdentityLock
+        ? compileFaceIdentityLock(input).metadata
+        : undefined,
     };
   }
 
