@@ -106,7 +106,6 @@ test('episode duration is chosen inside 90-120s, not a fixed EP1/rest split', ()
 
 test('story kernel is compact and bans arrival openings once', () => {
   assert.match(STORY_KERNEL, /3s freeze-frame/);
-  assert.match(STORY_KERNEL, /O Retorno/);
   assert.match(STORY_KERNEL, /adjacent pressure_type/);
   assert.match(STORY_KERNEL, /viewer_dramatic_irony/);
   assert.ok(STORY_KERNEL.length < 900, 'kernel must stay short for DeepSeek');

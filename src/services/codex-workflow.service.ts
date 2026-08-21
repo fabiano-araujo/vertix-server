@@ -464,19 +464,20 @@ LOOKS / VISUALS are script-driven, never a costume template:
 `;
 
 const nucleusContract = `
-THIS STAGE: invent only the series nucleus. No characters sheets, locations, props, episodes, or references.
+THIS STAGE: invent only the series nucleus. No character sheets, locations, props, episodes, or references.
 
-USER_INSTRUCTION is a vague vibe, not a catalog form. Examples: "dorama na favela", "filme de ação", "anime estilo Avatar", "série estilo Dark". Infer genre, world and visual_style from that sentence. Ignore catalog leftovers such as "Microdrama moderno". Do not ask for extra dropdowns. Never copy a real title (Avatar, Dark, Attack on Titan) as the series title.
+USER_INSTRUCTION is a vibe, not a catalog. Examples: "dorama na favela", "ação estilo DramaBox", "anime curto tipo TikTok", "filme de ação", "série estilo Dark". Infer genre, world and visual_style from that sentence (dorama, action, anime, thriller — all allowed). Ignore leftovers such as "Microdrama moderno". Never copy a real title (Avatar, Dark, Attack on Titan) as the series title.
 
-Title: 2-6 words in the project language. Do not use the raw idea, genre, trope, or setting as the title. Ban arrival/return titles and catalog titles: "O Retorno", "Doces Segredos", "Laços", "Segredos", "Amor Proibido".
-Premise: the lead ALREADY lives inside a ticking claim, power imbalance or forbidden proximity. The opposing force already lives there too. Ban loglines of arrival/return/new-life ("após anos afastado", "volta para casa", "retorna à favela", "o pai voltou", "voltou para dominar"). Not a misunderstanding one talk would dissolve.
-Do not make the raw idea the engine. If the brief is a place, invent a specific job, claim or secret INSIDE it that is not a postcard of that place. The costly want is personal (a job that can be taken tonight, a debt, custody, a name on a paper that ruins HER/HIM) — not civic heroism.
-Ban ice CEO, demolition-saves-community, save-the-school, save-the-neighborhood, Cinderella intern, secret billionaire, secret-paternity/hidden-father, bakery-plus-drug-lord, two rival gang bosses as the whole plot.
-One opposing_force only. A love interest is either the opposing_force or an ally — not a second antagonist.
-speaking_cast names: match the vibe's geography (a favela brief may be Brazilian). Vary origins only when the vibe is abstract. Ban Costa, Silva, Menezes, Ventura, Tavares, Oliveira, Santos, Souza, Lima, Nogueira, and the stock pair Caio/Marina.
-world_visual_lock: one photographed-world sentence invented from the vibe. Every later place copies this DNA. Do not copy a generic preset.
-speaking_cast: 4-5 people as compact roles only (no appearance, no looks). 2-4 speakers plus supporting.
-Episodes later run 90-120 seconds; do not fix a duration here.
+A named show is WORLD and TONE only. "estilo Dark" = time, secret, small town, unanswered question — not 50-minute prestige pacing, not a slow first act.
+
+FORMAT (always): short addictive vertical series (DramaBox / TikTok). Later episodes are 90-120s. A cold viewer must understand the want in 3 seconds and stay for the unanswered question. Compress the vibe into that format. Genre is free; addiction is not.
+
+Title: 2-6 original words in the project language. Do not use the raw idea as the title.
+Premise: the lead is already inside a costly situation (deadline, power imbalance, forbidden proximity, a claim that can be taken tonight). The opposing force already lives there. Not a misunderstanding one talk would dissolve. If the brief is a place, invent a specific job or claim INSIDE it. Romance, school, crime, mecha, debt — all allowed if the want has visible cost.
+One opposing_force. A love interest is either that force or an ally.
+speaking_cast: 4-5 compact roles (no appearance). Names match the world of the vibe.
+world_visual_lock: one world sentence for THIS series (live-action or drawn). Every later place copies it.
+Do not fix episode duration here.
 
 result:
 {
@@ -573,7 +574,6 @@ THIS STAGE: fill ONLY the season architecture for ${target} episodes. Keep SERIE
 PLANNED_BLOCKS_JSON and RETENTION_PROFILE_JSON are code-owned: keep block ids, ranges, paywall, and conversion_role. Fill dramatic content only.
 Do not rewrite title, logline, emotional_fantasy or differentiating_mechanism.
 Fill irreversible_turn on every block: one visible decision that cannot be undone. Empty string is invalid.
-Do not invent a second opposing force. Do not kill locked supporting people before the ceiling. Do not name extras Caio or Marina.
 viewer_dramatic_irony must not hand the protagonist a reserved_reveal before earliest_episode, and must not contradict reserved_reveals.
 viewer_dramatic_irony must not contradict the free funnel (audience may know X; protagonist must not be handed X as fact). acquisition_clip is the EP1 3s detonation. Do not spend what EP${target} needs. At least 3 reserved_reveals after the free funnel.
 result:

@@ -126,7 +126,7 @@ export const beatEngineForDuration = (seconds: number): BeatEngine => {
  */
 export const STORY_KERNEL = [
   'STORY KERNEL (system-owned; do not restate or waive):',
-  '3s freeze-frame = irreversible act in progress. Ban arrival/return/new-life openings and titles like "O Retorno". 15s = who/want/obstacle/risk.',
+  '3s freeze-frame = irreversible act in progress. 15s = who/want/obstacle/risk.',
   'One exclusive job per EP; adjacent pressure_type must differ. Pay the previous hook, then raise cost. Cut on the unanswered question.',
   'Plant viewer_dramatic_irony when it names an episode. Funnel proves; central question waits for the ceiling. Paywall asks; +1-2 pays and opens a bigger problem. Honor LOCKED_REVEALS and must_not.',
 ].join('\n');
