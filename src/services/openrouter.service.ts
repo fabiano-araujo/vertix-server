@@ -144,8 +144,8 @@ const OPENROUTER_ROUTING_SUFFIX = /:(nitro|floor|exacto)\b/gi;
 const toDefaultProviderModel = (model: string): string =>
   model.replace(OPENROUTER_ROUTING_SUFFIX, '').trim();
 
-/** Teto padrão: US$ 0,28 por milhão de tokens de saída (completion). */
-export const OPENROUTER_MAX_COMPLETION_USD_PER_MILLION = 0.28;
+/** Teto padrão: US$ 0,30 por milhão de tokens de saída (completion). */
+export const OPENROUTER_MAX_COMPLETION_USD_PER_MILLION = 0.30;
 
 export type OpenRouterProviderSort = 'throughput' | 'latency' | 'price';
 
@@ -170,7 +170,7 @@ const parseProviderSort = (value: string | undefined): OpenRouterProviderSort =>
 };
 
 /**
- * Mais rápido entre provedores com output ≤ US$ 0,28/M.
+ * Mais rápido entre provedores com output ≤ US$ 0,30/M.
  * AtlasCloud (~US$ 1,32) e Wafer Fast (~US$ 0,56) ficam de fora.
  */
 export const openRouterProviderPreferences = (): OpenRouterProviderPreferences => ({

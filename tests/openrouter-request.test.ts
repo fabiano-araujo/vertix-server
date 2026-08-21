@@ -12,16 +12,16 @@ import {
 } from '../src/services/openrouter.service';
 import { DEFAULT_OPENROUTER_MODEL } from '../src/config/ai-models.config';
 
-test('routes OpenRouter to the fastest provider at or below $0.28/M output', () => {
+test('routes OpenRouter to the fastest provider at or below $0.30/M output', () => {
   const previousSort = process.env.OPENROUTER_PROVIDER_SORT;
   const previousPrice = process.env.OPENROUTER_MAX_OUTPUT_PRICE;
   delete process.env.OPENROUTER_PROVIDER_SORT;
   delete process.env.OPENROUTER_MAX_OUTPUT_PRICE;
   try {
-    assert.equal(OPENROUTER_MAX_COMPLETION_USD_PER_MILLION, 0.28);
+    assert.equal(OPENROUTER_MAX_COMPLETION_USD_PER_MILLION, 0.30);
     assert.deepEqual(openRouterProviderPreferences(), {
       sort: 'throughput',
-      max_price: { completion: 0.28 },
+      max_price: { completion: 0.30 },
     });
   } finally {
     if (previousSort === undefined) delete process.env.OPENROUTER_PROVIDER_SORT;
