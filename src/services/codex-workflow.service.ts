@@ -1,5 +1,5 @@
 import { prisma } from './prisma';
-import { generateText, STORY_REASONING_HIDDEN, storyCompletionBudget } from './openrouter.service';
+import { generateTextWithMeta, STORY_REASONING_VISIBLE, storyCompletionBudget } from './openrouter.service';
 import { INVALID_AI_JSON_MESSAGE, parseAiJsonObject } from './ai-json.service';
 import { DEFAULT_OPENROUTER_MODEL, resolveModel } from '../config/ai-models.config';
 import {
@@ -60,6 +60,55 @@ type ProgressCallback = (
   message: string,
   extra?: JsonMap,
 ) => Promise<void> | void;
+
+/** Keep the current progress bar when publishing debug-only updates. */
+const KEEP_PROGRESS = -1;
+
+type AiDebugInfo = {
+  step: string;
+  stepLabel: string;
+  status: 'waiting' | 'done';
+  prompt: string;
+  thought?: string;
+  model: string;
+  startedAt: string;
+  finishedAt?: string;
+  reasoningTokens?: number;
+  promptTokens?: number;
+  completionTokens?: number;
+};
+
+type GenerateJsonDebug = {
+  step: string;
+  stepLabel: string;
+  progress: number;
+  onProgress: ProgressCallback;
+  extra?: JsonMap;
+};
+
+const formatPromptForDebug = (
+  prompt: string | Array<{ role: string; content: string }>,
+): string => {
+  if (typeof prompt === 'string') return prompt;
+  return prompt
+    .map((item) => `[${String(item.role || 'user').toUpperCase()}]\n${item.content}`)
+    .join('\n\n');
+};
+
+const jsonDebugContext = (
+  onProgress: ProgressCallback,
+  model: string,
+  step: string,
+  stepLabel: string,
+  progress: number,
+  extra?: JsonMap,
+): GenerateJsonDebug => ({
+  step,
+  stepLabel,
+  progress,
+  onProgress,
+  extra,
+});
 
 const isAction = (value: unknown): value is CodexWorkflowAction =>
   typeof value === 'string' &&
@@ -599,12 +648,33 @@ const generateJson = async (
   prompt: string | Array<{ role: string; content: string }>,
   maxTokens: number,
   abortController?: AbortController,
+  debug?: GenerateJsonDebug,
 ): Promise<JsonMap> => {
+  let debugStartedAt = new Date().toISOString();
+  const publishDebug = async (patch: Partial<AiDebugInfo>) => {
+    if (!debug) return;
+    if (patch.startedAt) debugStartedAt = patch.startedAt;
+    const progress = patch.status === 'done' ? KEEP_PROGRESS : debug.progress;
+    await debug.onProgress(progress, debug.stepLabel, {
+      ...(debug.extra || {}),
+      debug: {
+        step: debug.step,
+        stepLabel: debug.stepLabel,
+        model,
+        prompt: formatPromptForDebug(prompt),
+        status: patch.status || 'waiting',
+        startedAt: debugStartedAt,
+        ...patch,
+      },
+    });
+  };
+
   const run = async (
     nextPrompt: string | Array<{ role: string; content: string }>,
   ): Promise<JsonMap> => {
     throwIfAborted(abortController);
-    const text = await generateText(
+    await publishDebug({ status: 'waiting', startedAt: new Date().toISOString() });
+    const meta = await generateTextWithMeta(
       nextPrompt,
       {
         model,
@@ -612,15 +682,23 @@ const generateJson = async (
         max_tokens: storyCompletionBudget(maxTokens),
         timeout: 180000,
         response_format: { type: 'json_object' },
-        reasoning: STORY_REASONING_HIDDEN,
+        reasoning: STORY_REASONING_VISIBLE,
       },
       abortController,
     );
     throwIfAborted(abortController);
-    if (typeof text !== 'string' || !text.trim()) {
+    await publishDebug({
+      status: 'done',
+      thought: meta.reasoning || undefined,
+      finishedAt: new Date().toISOString(),
+      reasoningTokens: meta.reasoningTokens,
+      promptTokens: meta.promptTokens,
+      completionTokens: meta.completionTokens,
+    });
+    if (!meta.content.trim()) {
       throw new Error('OpenRouter retornou resposta vazia');
     }
-    return parseCodexEnvelope(text).result;
+    return parseCodexEnvelope(meta.content).result;
   };
 
   try {
@@ -843,7 +921,20 @@ const generateOutlineInStages = async (
     );
   } else {
     await onProgress(8, 'Inventando título e contrato da série...');
-    const bibleResult = await generateJson(model, buildPrompt(request), 8192, abortController);
+    const bibleResult = await generateJson(
+      model,
+      buildPrompt(request),
+      8192,
+      abortController,
+      jsonDebugContext(
+        onProgress,
+        model,
+        'series_contract',
+        'Inventando título e contrato da série...',
+        8,
+        { action: request.action, provider: 'openrouter', model },
+      ),
+    );
     patch = {
       ...asMap(bibleResult.seriesBiblePatch),
       episode_cards: [] as JsonMap[],
@@ -870,9 +961,7 @@ const generateOutlineInStages = async (
     await publish(12, title ? `Título: ${title}` : 'Contrato da série pronto', result, conversation, true);
 
     await publish(16, 'Mapeando a temporada, o paywall e as revelações reservadas...', result, conversation, true);
-    const architectureResult = await generateJson(
-      model,
-      `${commonContract(request)}\n${architectureContract(target)}\nRETENTION_PROFILE_JSON:\n${JSON.stringify(profile)}\nPLANNED_BLOCKS_JSON:\n${JSON.stringify(plannedBlocks)}\nSERIES_CONTRACT_JSON:\n${JSON.stringify({
+    const architecturePrompt = `${commonContract(request)}\n${architectureContract(target)}\nRETENTION_PROFILE_JSON:\n${JSON.stringify(profile)}\nPLANNED_BLOCKS_JSON:\n${JSON.stringify(plannedBlocks)}\nSERIES_CONTRACT_JSON:\n${JSON.stringify({
         title,
         logline: patch.logline,
         protagonist: patch.protagonist,
@@ -882,9 +971,27 @@ const generateOutlineInStages = async (
         emotional_fantasy: patch.emotional_fantasy,
         differentiating_mechanism: patch.differentiating_mechanism,
         language: patch.language || bible.language,
-      })}\nCAST_AND_PROPS_JSON:\n${JSON.stringify(compactStoryContext(patch))}`,
+      })}\nCAST_AND_PROPS_JSON:\n${JSON.stringify(compactStoryContext(patch))}`;
+    const architectureResult = await generateJson(
+      model,
+      architecturePrompt,
       8192,
       abortController,
+      jsonDebugContext(
+        onProgress,
+        model,
+        'season_architecture',
+        'Mapeando a temporada, o paywall e as revelações reservadas...',
+        16,
+        {
+          action: request.action,
+          provider: 'openrouter',
+          model,
+          result,
+          conversation,
+          partial: true,
+        },
+      ),
     );
     const architecturePatch = asMap(architectureResult.seriesBiblePatch);
     filledBlocks = applyPlannedBlockRanges(
@@ -932,11 +1039,27 @@ const generateOutlineInStages = async (
       `${conversation}\n\nEspinha ${chunk.start}-${chunk.end}...`,
       true,
     );
+    const spinePrompt = `${commonContract(request)}\n${spineChunkContract(chunk.start, chunk.end, target)}\nOUTLINE_BATCH_JSON:\n${JSON.stringify(batch)}\nRETENTION_PROFILE_JSON:\n${JSON.stringify(profile)}\nSEASON_BLOCKS_JSON:\n${JSON.stringify(filledBlocks)}\nRESERVED_REVEALS_JSON:\n${JSON.stringify(reservedReveals)}\nSERIES_CONTRACT_JSON:\n${JSON.stringify(compactStoryContext(patch))}\nPREVIOUS_SPINE_JSON:\n${JSON.stringify(compactSpineForPrompt(spine))}\nSERIES_TITLE: ${title}`;
     const spineResult = await generateJson(
       model,
-      `${commonContract(request)}\n${spineChunkContract(chunk.start, chunk.end, target)}\nOUTLINE_BATCH_JSON:\n${JSON.stringify(batch)}\nRETENTION_PROFILE_JSON:\n${JSON.stringify(profile)}\nSEASON_BLOCKS_JSON:\n${JSON.stringify(filledBlocks)}\nRESERVED_REVEALS_JSON:\n${JSON.stringify(reservedReveals)}\nSERIES_CONTRACT_JSON:\n${JSON.stringify(compactStoryContext(patch))}\nPREVIOUS_SPINE_JSON:\n${JSON.stringify(compactSpineForPrompt(spine))}\nSERIES_TITLE: ${title}`,
+      spinePrompt,
       8192,
       abortController,
+      jsonDebugContext(
+        onProgress,
+        model,
+        `episode_spine_${chunk.start}_${chunk.end}`,
+        `Espinha dos episódios ${chunk.start}-${chunk.end} (lote ${batch.fromEpisode}-${batch.throughEpisode} de ${target})...`,
+        pct,
+        {
+          action: request.action,
+          provider: 'openrouter',
+          model,
+          result,
+          conversation: `${conversation}\n\nEspinha ${chunk.start}-${chunk.end}...`,
+          partial: true,
+        },
+      ),
     );
     spine = mergeSpine(
       spine,
@@ -971,11 +1094,27 @@ const generateOutlineInStages = async (
       `${conversation}\n\nEP${number} · escrevendo...`,
       true,
     );
+    const episodePrompt = `${commonContract({ ...request, episodeNumber: number })}\n${oneEpisodeContract(number, target, duration)}\nOUTLINE_BATCH_JSON:\n${JSON.stringify(batch)}\nTHIS_SPINE_SLOT:\n${JSON.stringify(thisSlot)}\nNEXT_SPINE_SLOT:\n${JSON.stringify(spine.find((item) => item.episode === number + 1) || null)}\nLOCKED_REVEALS:\n${JSON.stringify(lockedRevealsForEpisode(reservedReveals, number))}\nBEAT_ENGINE_JSON:\n${JSON.stringify(beatEngineForDuration(duration))}\nRECENT_CARDS_JSON:\n${JSON.stringify(recentCardsForPrompt(patch.episode_cards as JsonMap[], number))}\nPREVIOUS_EPISODE_JSON:\n${JSON.stringify(previous || null)}\nPREVIOUS_HOOK_JSON:\n${JSON.stringify(previousHook || null)}\nSERIES_TITLE: ${title}\nPROJECT_DATA_JSON:\n${JSON.stringify(compactSeriesForEpisodeOutline(title, target, patch, spine, number))}`;
     const episodeResult = await generateJson(
       model,
-      `${commonContract({ ...request, episodeNumber: number })}\n${oneEpisodeContract(number, target, duration)}\nOUTLINE_BATCH_JSON:\n${JSON.stringify(batch)}\nTHIS_SPINE_SLOT:\n${JSON.stringify(thisSlot)}\nNEXT_SPINE_SLOT:\n${JSON.stringify(spine.find((item) => item.episode === number + 1) || null)}\nLOCKED_REVEALS:\n${JSON.stringify(lockedRevealsForEpisode(reservedReveals, number))}\nBEAT_ENGINE_JSON:\n${JSON.stringify(beatEngineForDuration(duration))}\nRECENT_CARDS_JSON:\n${JSON.stringify(recentCardsForPrompt(patch.episode_cards as JsonMap[], number))}\nPREVIOUS_EPISODE_JSON:\n${JSON.stringify(previous || null)}\nPREVIOUS_HOOK_JSON:\n${JSON.stringify(previousHook || null)}\nSERIES_TITLE: ${title}\nPROJECT_DATA_JSON:\n${JSON.stringify(compactSeriesForEpisodeOutline(title, target, patch, spine, number))}`,
+      episodePrompt,
       6144,
       abortController,
+      jsonDebugContext(
+        onProgress,
+        model,
+        `episode_outline_${number}`,
+        `Gerando EP${number}/${target} (lote ${batch.fromEpisode}-${batch.throughEpisode})...`,
+        pct,
+        {
+          action: request.action,
+          provider: 'openrouter',
+          model,
+          result,
+          conversation: `${conversation}\n\nEP${number} · escrevendo...`,
+          partial: true,
+        },
+      ),
     );
     const episodePayload = asMap(episodeResult.episode);
     const episode: JsonMap = {
@@ -1153,14 +1292,29 @@ Shot 1 = this episode cold_open / opening_pickup. Same plot, cast, and locations
   await publish(12, `Planejando cenas do EP${episodeNumber} · ${title}...`, true);
   const castLooksCatalog = compactCastLooksCatalog(bible.characters);
   const wardrobeLock = `WARDROBE LOCK: Set scene.cast_looks to {"character-id":"look-id"} from CAST_LOOKS_CATALOG_JSON. Use default (or omit) for the standard appearance. Use an extra look only when this scene's location/story requires a different costume. Visible clothes in action text must match that look's wardrobe.`;
-  const planResult = await generateJson(
-    model,
-    `${commonContract(request)}\n${lockRule}\n${wardrobeLock}\nPlan 2 to 4 scenes for this episode only. Scene duration_seconds must sum exactly to ${duration}. Use only locked characters and locations.\nresult shape: {"scene_plan":[{"scene":1,"title":"...","location":"...","location_id":"...","time_of_day":"DAY or NIGHT","interior_exterior":"INT or EXT","dramatic_beat":"...","cast":["..."],"cast_ids":["..."],"cast_looks":{"character-id":"default"},"duration_seconds":30,"story":"..."}]}\nCAST_LOOKS_CATALOG_JSON:\n${JSON.stringify(castLooksCatalog)}\nLOCKED_STORY_JSON:\n${JSON.stringify({
+  const planPrompt = `${commonContract(request)}\n${lockRule}\n${wardrobeLock}\nPlan 2 to 4 scenes for this episode only. Scene duration_seconds must sum exactly to ${duration}. Use only locked characters and locations.\nresult shape: {"scene_plan":[{"scene":1,"title":"...","location":"...","location_id":"...","time_of_day":"DAY or NIGHT","interior_exterior":"INT or EXT","dramatic_beat":"...","cast":["..."],"cast_ids":["..."],"cast_looks":{"character-id":"default"},"duration_seconds":30,"story":"..."}]}\nCAST_LOOKS_CATALOG_JSON:\n${JSON.stringify(castLooksCatalog)}\nLOCKED_STORY_JSON:\n${JSON.stringify({
       ...compact,
       lockedEpisode: locked,
-    })}`,
+    })}`;
+  const planResult = await generateJson(
+    model,
+    planPrompt,
     4096,
     abortController,
+    jsonDebugContext(
+      onProgress,
+      model,
+      `episode_script_plan_${episodeNumber}`,
+      `Planejando cenas do EP${episodeNumber} · ${title}...`,
+      12,
+      {
+        action: request.action,
+        provider: 'openrouter',
+        model,
+        conversation,
+        partial: true,
+      },
+    ),
   );
   const scenePlan: JsonMap[] = (Array.isArray(planResult.scene_plan) ? planResult.scene_plan : [])
     .map((item: any, index: number) => {
@@ -1202,11 +1356,26 @@ Shot 1 = this episode cold_open / opening_pickup. Same plot, cast, and locations
     const pct = 20 + Math.round(((index + 1) / planned.length) * 70);
     conversation = `${conversation}\n\nCena ${plannedScene.scene} · ${plannedScene.title || ''} — escrevendo...`;
     await publish(pct, `Escrevendo a cena ${plannedScene.scene}/${planned.length}...`, true);
+    const scenePrompt = `${commonContract(request)}\n${episodeSceneContract}\n${lockRule}\n${wardrobeLock}\nWrite ONLY scene ${plannedScene.scene} of ${planned.length} for episode ${episodeNumber}. Scene duration must be exactly ${plannedScene.duration_seconds}s. Shot numbers must start at ${shotNumber} and be contiguous. ${shotFixed ? `Each shot must last exactly ${maxShot}s.` : `Each shot 1-${maxShot}s.`} Row durations must sum to the shot. Return result shape: {"scene":{"episode":${episodeNumber},"scene":${plannedScene.scene},"title":${JSON.stringify(plannedScene.title || '')},"location_id":${JSON.stringify(plannedScene.location_id || '')},"location":${JSON.stringify(plannedScene.location || '')},"time_of_day":${JSON.stringify(plannedScene.time_of_day || 'DAY')},"interior_exterior":${JSON.stringify(plannedScene.interior_exterior || 'INT')},"dramatic_beat":${JSON.stringify(plannedScene.dramatic_beat || '')},"cast_ids":${JSON.stringify(plannedScene.cast_ids || [])},"cast":${JSON.stringify(plannedScene.cast || [])},"cast_looks":${JSON.stringify(plannedScene.cast_looks || {})},"story":${JSON.stringify(plannedScene.story || '')},"status":"DRAFT_REVIEW_REQUIRED","shots":[{"number":${shotNumber},"title":"...","duration_seconds":8,"status":"DRAFT_REVIEW_REQUIRED","final_state":"...","rows":[{"type":"action","text":"...","duration_seconds":2}]}]}}\nPREVIOUS_SCENES_JSON:\n${JSON.stringify(compactPreviousScenes(scriptBase.scenes as JsonMap[]))}\nSCENE_PLAN_JSON:\n${JSON.stringify(plannedScene)}\nCAST_LOOKS_CATALOG_JSON:\n${JSON.stringify(castLooksCatalog)}\nLOCKED_STORY_JSON:\n${JSON.stringify({ ...compact, lockedEpisode: locked })}`;
     const sceneResult = await generateJson(
       model,
-      `${commonContract(request)}\n${episodeSceneContract}\n${lockRule}\n${wardrobeLock}\nWrite ONLY scene ${plannedScene.scene} of ${planned.length} for episode ${episodeNumber}. Scene duration must be exactly ${plannedScene.duration_seconds}s. Shot numbers must start at ${shotNumber} and be contiguous. ${shotFixed ? `Each shot must last exactly ${maxShot}s.` : `Each shot 1-${maxShot}s.`} Row durations must sum to the shot. Return result shape: {"scene":{"episode":${episodeNumber},"scene":${plannedScene.scene},"title":${JSON.stringify(plannedScene.title || '')},"location_id":${JSON.stringify(plannedScene.location_id || '')},"location":${JSON.stringify(plannedScene.location || '')},"time_of_day":${JSON.stringify(plannedScene.time_of_day || 'DAY')},"interior_exterior":${JSON.stringify(plannedScene.interior_exterior || 'INT')},"dramatic_beat":${JSON.stringify(plannedScene.dramatic_beat || '')},"cast_ids":${JSON.stringify(plannedScene.cast_ids || [])},"cast":${JSON.stringify(plannedScene.cast || [])},"cast_looks":${JSON.stringify(plannedScene.cast_looks || {})},"story":${JSON.stringify(plannedScene.story || '')},"status":"DRAFT_REVIEW_REQUIRED","shots":[{"number":${shotNumber},"title":"...","duration_seconds":8,"status":"DRAFT_REVIEW_REQUIRED","final_state":"...","rows":[{"type":"action","text":"...","duration_seconds":2}]}]}}\nPREVIOUS_SCENES_JSON:\n${JSON.stringify(compactPreviousScenes(scriptBase.scenes as JsonMap[]))}\nSCENE_PLAN_JSON:\n${JSON.stringify(plannedScene)}\nCAST_LOOKS_CATALOG_JSON:\n${JSON.stringify(castLooksCatalog)}\nLOCKED_STORY_JSON:\n${JSON.stringify({ ...compact, lockedEpisode: locked })}`,
+      scenePrompt,
       8000,
       abortController,
+      jsonDebugContext(
+        onProgress,
+        model,
+        `episode_script_scene_${episodeNumber}_${plannedScene.scene}`,
+        `Escrevendo a cena ${plannedScene.scene}/${planned.length}...`,
+        pct,
+        {
+          action: request.action,
+          provider: 'openrouter',
+          model,
+          conversation,
+          partial: true,
+        },
+      ),
     );
     const scene = asMap(sceneResult.scene || sceneResult);
     const shots = (Array.isArray(scene.shots) ? scene.shots : []).map((item: any, shotIndex: number) => {
@@ -1305,7 +1474,20 @@ const generateStorySheets = async (
     provider: 'openrouter',
     model,
   });
-  const raw = await generateJson(model, buildPrompt(request), 8000, abortController);
+  const raw = await generateJson(
+    model,
+    buildPrompt(request),
+    8000,
+    abortController,
+    jsonDebugContext(onProgress, model, 'story_sheets', message, 12, {
+      action: request.action,
+      summary: message,
+      conversation: message,
+      partial: true,
+      provider: 'openrouter',
+      model,
+    }),
+  );
   const result = sanitizeStorySheetsResult(raw);
   const characters = Array.isArray(result.seriesBiblePatch.characters)
     ? result.seriesBiblePatch.characters.length
@@ -1350,25 +1532,56 @@ const runCodexTextAction = async (
   }
 
   throwIfAborted(abortController);
-  await onProgress(25, `OpenRouter (${model}) gerando o pacote narrativo`);
-  const text = await generateText(
-    buildPrompt(request),
+  const revisePrompt = buildPrompt(request);
+  const reviseLabel = `OpenRouter (${model}) gerando o pacote narrativo`;
+  await onProgress(25, reviseLabel, {
+    action: request.action,
+    provider: 'openrouter',
+    model,
+    debug: {
+      step: 'revise_project',
+      stepLabel: reviseLabel,
+      status: 'waiting',
+      prompt: revisePrompt,
+      model,
+      startedAt: new Date().toISOString(),
+    },
+  });
+  const meta = await generateTextWithMeta(
+    revisePrompt,
     {
       model,
       temperature: 0.7,
       max_tokens: storyCompletionBudget(8000),
       timeout: 240000,
       response_format: { type: 'json_object' },
-      reasoning: STORY_REASONING_HIDDEN,
+      reasoning: STORY_REASONING_VISIBLE,
     },
     abortController,
   );
   throwIfAborted(abortController);
-  if (typeof text !== 'string' || !text.trim()) {
+  await onProgress(KEEP_PROGRESS, reviseLabel, {
+    action: request.action,
+    provider: 'openrouter',
+    model,
+    debug: {
+      step: 'revise_project',
+      stepLabel: reviseLabel,
+      status: 'done',
+      prompt: revisePrompt,
+      thought: meta.reasoning || undefined,
+      model,
+      finishedAt: new Date().toISOString(),
+      reasoningTokens: meta.reasoningTokens,
+      promptTokens: meta.promptTokens,
+      completionTokens: meta.completionTokens,
+    },
+  });
+  if (!meta.content.trim()) {
     throw new Error('OpenRouter retornou resposta vazia');
   }
   await onProgress(85, 'Validando o retorno estruturado da IA');
-  const parsed = parseCodexEnvelope(text);
+  const parsed = parseCodexEnvelope(meta.content);
   return {
     action: request.action,
     summary: parsed.summary,
@@ -1437,13 +1650,16 @@ export const processWorkflowJob = async (jobId: number): Promise<void> => {
       throw new Error(current.errorMessage || JOB_CANCELLED_MESSAGE);
     }
     snapshot = { ...snapshot, ...(extra || {}), message };
+    const data: Record<string, unknown> = {
+      status: 'PROCESSING',
+      outputData: JSON.stringify(snapshot),
+    };
+    if (progress >= 0) {
+      data.progress = Math.max(1, Math.min(99, Math.round(progress)));
+    }
     await prisma.aIGenerationJob.update({
       where: { id: jobId },
-      data: {
-        status: 'PROCESSING',
-        progress: Math.max(1, Math.min(99, Math.round(progress))),
-        outputData: JSON.stringify(snapshot),
-      },
+      data,
     });
   };
 
