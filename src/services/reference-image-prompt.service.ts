@@ -178,30 +178,106 @@ const isCharacterOutfitLook = (input: ReferenceImagePromptInput): boolean => {
   return kind === 'wardrobe' || kind === 'outfit' || kind === 'look';
 };
 
+const lookCharacterName = (input: ReferenceImagePromptInput): string => {
+  const named = readableValue(metadataValue(input.metadata || {}, ['name']), 180);
+  return named || cleanText(input.label, 180);
+};
+
+const lookWardrobe = (input: ReferenceImagePromptInput): string =>
+  readableValue(
+    metadataValue(input.metadata || {}, [
+      'wardrobe',
+      'outfit_lock',
+      'outfitLock',
+      'clothing',
+    ]),
+    2_000,
+  );
+
+const isCompiledOutfitLookPrompt = (prompt: string): boolean => {
+  const normalized = prompt.toLowerCase();
+  return normalized.includes('image 1 is the canonical identity sheet')
+    && (
+      normalized.includes('left 70%')
+      || normalized.includes('three full-body turnaround views')
+      || normalized.includes('include full-body front')
+    );
+};
+
 const outfitLookInstruction = (input: ReferenceImagePromptInput): string => {
   const metadata = input.metadata || {};
   const supplied = [
     cleanText(input.prompt, 4_000),
     cleanText(input.description, 4_000),
     cleanText(metadata.prompt, 4_000),
-  ].find((value) => value.toLowerCase().includes('keep the character from image 1'));
+  ].find((value) => (
+    value.toLowerCase().includes('keep the character from image 1')
+    && !value.toLowerCase().includes('left 70%')
+  ));
   if (supplied) return supplied;
-  const wardrobe = readableValue(
-    metadataValue(metadata, ['wardrobe', 'outfit_lock', 'outfitLock', 'clothing']),
-    2_000,
-  );
+  const wardrobe = lookWardrobe(input);
   return wardrobe
     ? `Keep the character from image 1 unchanged. Change the outfit to: ${wardrobe}`
     : 'Keep the character from image 1 unchanged. Change the outfit to the approved wardrobe for this look.';
 };
 
-const compileOutfitLookPrompt = (input: ReferenceImagePromptInput): string => {
-  const name = cleanText(input.label, 180);
-  const metadata = input.metadata || {};
+const clothingKeys = new Set([
+  'clothing',
+  'wardrobe',
+  'outfit',
+  'outfit_lock',
+  'outfitlock',
+]);
+
+const cardWithoutClothing = (
+  value: unknown,
+): Record<string, unknown> | undefined => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+  const next: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    if (clothingKeys.has(normalizedKey(key))) continue;
+    next[key] = item;
+  }
+  return next;
+};
+
+const lookSheetInput = (
+  input: ReferenceImagePromptInput,
+): ReferenceImagePromptInput => {
+  const metadata = { ...(input.metadata || {}) };
+  const card = cardWithoutClothing(
+    metadata.appearance_card ?? metadata.appearanceCard,
+  );
+  if (card) metadata.appearance_card = card;
+  delete metadata.appearanceCard;
+  const wardrobe = lookWardrobe(input);
+  if (wardrobe) {
+    metadata.outfit_lock = wardrobe;
+    metadata.wardrobe = wardrobe;
+  }
   const identity = uniqueFacts([
     ...selectedMetadataFacts(metadata, [
       ['appearance', 'visual_lock', 'visualLock'],
-      ['appearance_card', 'appearanceCard'],
+      ['origin', 'country', 'nationality', 'ancestry', 'ethnicity', 'pais', 'origem'],
+      ['age', 'age_range', 'ageRange'],
+    ]),
+  ]).join(' ');
+  return {
+    ...input,
+    label: lookCharacterName(input),
+    description: identity,
+    prompt: '',
+    metadata,
+  };
+};
+
+const compileSimpleOutfitLookPrompt = (input: ReferenceImagePromptInput): string => {
+  const name = lookCharacterName(input);
+  const identity = uniqueFacts([
+    ...selectedMetadataFacts(input.metadata || {}, [
+      ['appearance', 'visual_lock', 'visualLock'],
       ['origin', 'country', 'nationality', 'ancestry', 'ethnicity', 'pais', 'origem'],
       ['age', 'age_range', 'ageRange'],
     ]),
@@ -214,6 +290,21 @@ IMAGE 1 is the canonical identity sheet of ${name}. Keep the same face, age, hei
 IDENTITY FACTS TO PRESERVE: ${identity}
 
 Photorealistic live-action continuity photograph, full body visible, clean off-white studio, 3:2. Exactly one person. No new identity. No extra people. No text, logo or watermark.`;
+};
+
+const compileOutfitLookPrompt = (input: ReferenceImagePromptInput): string => {
+  if (isExplicitMinor(input)) return compileSimpleOutfitLookPrompt(input);
+
+  const name = lookCharacterName(input);
+  const wardrobe = lookWardrobe(input);
+  const sheet = compileHybridCharacterPrompt(lookSheetInput(input));
+  return `${outfitLookInstruction(input)}
+
+IMAGE 1 is the canonical identity sheet of ${name}. Extract only this person from Image 1. Keep the same face, age, height, ethnicity, bone structure, body and hair identity. Do not copy Image 1's sheet layout, shattered portrait, turnaround views, editorial type or studio backdrop as a collage. Rebuild a NEW identity sheet in the exact layout specified below.
+
+WARDROBE CHANGE: replace clothes, shoes, accessories and any hair styling or handheld prop with this approved outfit, used identically in all three full-body views: ${wardrobe || 'the approved wardrobe for this look'}. Do not keep the clothes from Image 1.
+
+${sheet}`;
 };
 
 const locationFacts = (input: ReferenceImagePromptInput): string => {
@@ -2033,11 +2124,18 @@ export const compileReferenceImagePrompt = (
   if (isCharacter) {
     if (isCharacterOutfitLook(input)) {
       const suppliedPrompt = cleanText(input.prompt, 20_000);
-      const alreadyCompiled = suppliedPrompt.toLowerCase().includes('image 1 is the canonical identity sheet');
+      const alreadyCompiled = isCompiledOutfitLookPrompt(suppliedPrompt);
+      const visualReferenceMode = alreadyCompiled
+        ? (
+          suppliedPrompt.toLowerCase().includes('left 70%')
+            ? 'hybrid_face_compat'
+            : 'standard_ultra_photoreal'
+        )
+        : (isExplicitMinor(input) ? 'standard_ultra_photoreal' : 'hybrid_face_compat');
       return {
         prompt: alreadyCompiled ? suppliedPrompt : compileOutfitLookPrompt(input),
         promptContract: REFERENCE_IMAGE_PROMPT_CONTRACT,
-        visualReferenceMode: 'standard_ultra_photoreal',
+        visualReferenceMode,
       };
     }
     const canonicalPrompt = suppliedPromptLooksCanonical(suppliedPrompt);

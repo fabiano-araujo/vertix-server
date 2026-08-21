@@ -685,14 +685,75 @@ test('wardrobe look compiles to an image-1 outfit change, not a new identity she
       parent_character_id: 'character-marta',
       look_kind: 'wardrobe',
       wardrobe: 'blusa de seda verde-garrafa',
+      name: 'Marta',
       appearance: 'Altura: 167cm. Etnia: Europeia do Sul (portuguesa).',
+      appearance_card: {
+        height_cm: 167,
+        ethnicity: 'Europeia do Sul (portuguesa)',
+        clothing: 'jaqueta de chef branca',
+      },
     },
   });
 
-  assert.equal(result.visualReferenceMode, 'standard_ultra_photoreal');
+  assert.equal(result.visualReferenceMode, 'hybrid_face_compat');
   assert.match(result.prompt, /Keep the character from image 1 unchanged/);
   assert.match(result.prompt, /blusa de seda verde-garrafa/);
-  assert.match(result.prompt, /IMAGE 1 is the canonical identity sheet/);
-  assert.doesNotMatch(result.prompt, /LEFT 70%/);
-  assert.doesNotMatch(result.prompt, /BROKEN PHOTOGRAPHIC PORTRAIT/);
+  assert.match(result.prompt, /IMAGE 1 is the canonical identity sheet of Marta/i);
+  assert.match(result.prompt, /WARDROBE CHANGE/);
+  assert.match(result.prompt, /LEFT 70% — THREE FULL-BODY TURNAROUND VIEWS/);
+  assert.match(result.prompt, /LARGE BROKEN PHOTOGRAPHIC PORTRAIT/);
+  assert.match(result.prompt, /Do not copy Image 1's sheet layout/i);
+  assert.match(result.prompt, /Do not keep the clothes from Image 1/i);
+  assert.doesNotMatch(result.prompt, /jaqueta de chef branca/);
+  assert.doesNotMatch(result.prompt, /Photorealistic live-action continuity photograph, full body visible/);
 });
+
+test('an old simple wardrobe look prompt is recompiled into the hybrid sheet', () => {
+  const result = compileReferenceImagePrompt({
+    label: 'Marta-em casa',
+    category: 'CHARACTER_LOOK',
+    prompt: `Keep the character from image 1 unchanged. Change the outfit to: camisola de malha.
+
+IMAGE 1 is the canonical identity sheet of Marta. Keep the same face.
+
+Photorealistic live-action continuity photograph, full body visible, clean off-white studio, 3:2.`,
+    metadata: {
+      parent_character_id: 'character-marta',
+      wardrobe: 'camisola de malha',
+      name: 'Marta',
+    },
+  });
+
+  assert.equal(result.visualReferenceMode, 'hybrid_face_compat');
+  assert.match(result.prompt, /LEFT 70%/);
+  assert.match(result.prompt, /LARGE BROKEN PHOTOGRAPHIC PORTRAIT/);
+  assert.match(result.prompt, /camisola de malha/);
+});
+
+test('wardrobe look source images resolve from the completed identity sibling', () => {
+  const resolved = resolveReferenceSourceImages(
+    {
+      category: 'CHARACTER_LOOK',
+      label: 'Marta-jantar de trabalho',
+      metadata: {
+        parent_character_id: 'character-marta',
+        wardrobe: 'blusa de seda verde-garrafa',
+      },
+    },
+    [
+      {
+        id: 'character-marta',
+        label: 'Marta',
+        category: 'CHARACTER_MASTER',
+        publicUrl: 'https://cdn.example.com/marta.png',
+        status: 'COMPLETED',
+      },
+    ],
+  );
+
+  assert.equal(resolved.length, 1);
+  assert.equal(resolved[0].url, 'https://cdn.example.com/marta.png');
+  assert.equal(resolved[0].referenceId, 'character-marta');
+  assert.equal(resolved[0].index, 1);
+});
+
