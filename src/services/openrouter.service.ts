@@ -59,6 +59,39 @@ export const STORY_REASONING_HIDDEN: OpenRouterReasoning = {
   exclude: true,
 };
 
+/** Visible thinking for admin debug panels in the Vertix studio. */
+export const STORY_REASONING_VISIBLE: OpenRouterReasoning = {
+  effort: 'high',
+  exclude: false,
+};
+
+export type OpenRouterTextMeta = {
+  content: string;
+  reasoning: string;
+  reasoningTokens: number;
+  promptTokens: number;
+  completionTokens: number;
+  finishReason: string;
+  model: string;
+};
+
+const extractOpenRouterReasoning = (message: any): string => {
+  if (typeof message?.reasoning === 'string' && message.reasoning.trim()) {
+    return message.reasoning.trim();
+  }
+  const details = message?.reasoning_details;
+  if (!Array.isArray(details)) return '';
+  return details
+    .map((item: any) => {
+      if (typeof item?.text === 'string') return item.text;
+      if (typeof item?.content === 'string') return item.content;
+      return '';
+    })
+    .filter(Boolean)
+    .join('\n\n')
+    .trim();
+};
+
 export const storyCompletionBudget = (maxTokens: number): number =>
   Math.max(STORY_MIN_COMPLETION_TOKENS, Math.trunc(maxTokens || 0));
 
@@ -105,11 +138,50 @@ export const openRouterErrorMessage = (error: unknown): string => {
   return fallback || 'Falha no OpenRouter';
 };
 
-// :nitro = sort throughput (mais rápido). Sem sufixo o OpenRouter usa o roteamento padrão (Balanced).
+// Sufixos :nitro/:floor/:exacto saem do model id; o roteamento vai no objeto `provider`.
 const OPENROUTER_ROUTING_SUFFIX = /:(nitro|floor|exacto)\b/gi;
 
 const toDefaultProviderModel = (model: string): string =>
   model.replace(OPENROUTER_ROUTING_SUFFIX, '').trim();
+
+/** Teto padrão: US$ 0,28 por milhão de tokens de saída (completion). */
+export const OPENROUTER_MAX_COMPLETION_USD_PER_MILLION = 0.28;
+
+export type OpenRouterProviderSort = 'throughput' | 'latency' | 'price';
+
+export type OpenRouterProviderPreferences = {
+  sort: OpenRouterProviderSort;
+  max_price: {
+    completion: number;
+  };
+};
+
+const parsePositiveNumber = (value: string | undefined, fallback: number): number => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const parseProviderSort = (value: string | undefined): OpenRouterProviderSort => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'latency' || normalized === 'price' || normalized === 'throughput') {
+    return normalized;
+  }
+  return 'throughput';
+};
+
+/**
+ * Mais rápido entre provedores com output ≤ US$ 0,28/M.
+ * AtlasCloud (~US$ 1,32) e Wafer Fast (~US$ 0,56) ficam de fora.
+ */
+export const openRouterProviderPreferences = (): OpenRouterProviderPreferences => ({
+  sort: parseProviderSort(process.env.OPENROUTER_PROVIDER_SORT),
+  max_price: {
+    completion: parsePositiveNumber(
+      process.env.OPENROUTER_MAX_OUTPUT_PRICE,
+      OPENROUTER_MAX_COMPLETION_USD_PER_MILLION,
+    ),
+  },
+});
 
 // Tipos para as mensagens
 interface TextContent {
@@ -246,7 +318,8 @@ export const analyzeImage = async (
           ]
         }
       ],
-      stream: streaming
+      stream: streaming,
+      provider: openRouterProviderPreferences(),
     };
 
     console.log(`Enviando requisição para analisar imagem com o modelo ${model} (streaming: ${streaming}):`, JSON.stringify(request, null, 2));
@@ -302,6 +375,132 @@ export const analyzeImage = async (
 };
 
 /**
+ * Non-streaming text generation with reasoning/token metadata for admin debug.
+ */
+export const generateTextWithMeta = async (
+  prompt: string | Array<{ role: string; content: string }>,
+  options: {
+    temperature?: number;
+    max_tokens?: number;
+    model?: string;
+    timeout?: number;
+    reasoning?: OpenRouterReasoning;
+    response_format?: { type: 'json_object' | 'text' };
+    lengthRetry?: boolean;
+  } = {},
+  abortController?: AbortController,
+): Promise<OpenRouterTextMeta> => {
+  if (!OPENROUTER_API_KEY.trim()) {
+    throw new Error('OPENROUTER_API_KEY nao configurada no servidor');
+  }
+
+  let messages: Array<{ role: string; content: string }>;
+  if (Array.isArray(prompt)) {
+    messages = prompt;
+  } else {
+    messages = [{ role: 'user', content: prompt }];
+  }
+
+  const provider = openRouterProviderPreferences();
+  const request: Record<string, unknown> = {
+    model: toDefaultProviderModel(options.model || AVAILABLE_MODELS.DEEPSEEK_V4_FLASH),
+    messages,
+    temperature: options.temperature,
+    max_tokens: options.max_tokens,
+    stream: false,
+    provider,
+  };
+  if (options.response_format) {
+    request.response_format = options.response_format;
+  }
+  const reasoning = sanitizeOpenRouterReasoning(options.reasoning);
+  if (reasoning) {
+    request.reasoning = reasoning;
+  }
+
+  console.log(
+    `Enviando texto para OpenRouter model=${request.model} max_tokens=${options.max_tokens || 'default'} sort=${provider.sort} max_output=$${provider.max_price.completion}/M`,
+  );
+
+  const config = {
+    headers: {
+      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+      Referer: SITE_URL,
+      'X-Title': SITE_NAME,
+      'Content-Type': 'application/json',
+    },
+    signal: abortController ? abortController.signal : undefined,
+    timeout: options.timeout || 180000,
+  };
+
+  const runOnce = async (): Promise<OpenRouterTextMeta> => {
+    const response = await axios.post<OpenRouterResponse>(API_URL, request, config);
+    const choice = response.data?.choices?.[0] as any;
+    const content = typeof choice?.message?.content === 'string'
+      ? choice.message.content
+      : '';
+    const usage = response.data?.usage as any;
+    const routedProvider = (response.data as { provider?: unknown } | undefined)?.provider;
+    const meta: OpenRouterTextMeta = {
+      content,
+      reasoning: extractOpenRouterReasoning(choice?.message),
+      reasoningTokens: Number(usage?.completion_tokens_details?.reasoning_tokens || 0),
+      promptTokens: Number(usage?.prompt_tokens || 0),
+      completionTokens: Number(usage?.completion_tokens || 0),
+      finishReason: String(choice?.finish_reason || 'unknown'),
+      model: String(request.model || ''),
+    };
+    console.log(
+      `OpenRouter ok model=${meta.model} provider=${routedProvider || 'unknown'} finish=${meta.finishReason} content_len=${meta.content.length} completion=${meta.completionTokens} reasoning=${meta.reasoningTokens}`,
+    );
+    return meta;
+  };
+
+  try {
+    const meta = await runOnce();
+    if (meta.content.trim()) {
+      return meta;
+    }
+    const retry = nextOpenRouterLengthRetry(
+      options.max_tokens,
+      meta.finishReason,
+      meta.content,
+      Boolean(options.lengthRetry),
+    );
+    if (retry) {
+      console.warn(
+        `OpenRouter empty finish=${meta.finishReason} reasoning=${meta.reasoningTokens}; retrying max_tokens=${retry.max_tokens} with capped hidden thinking`,
+      );
+      return generateTextWithMeta(
+        prompt,
+        {
+          ...options,
+          max_tokens: retry.max_tokens,
+          reasoning: retry.reasoning,
+          lengthRetry: true,
+        },
+        abortController,
+      );
+    }
+    throw new Error(
+      `OpenRouter retornou resposta vazia (finish=${meta.finishReason}, reasoning_tokens=${meta.reasoningTokens})`,
+    );
+  } catch (error: any) {
+    if (
+      error.name === 'AbortError' ||
+      error.name === 'CanceledError' ||
+      error.code === 'ERR_CANCELED' ||
+      error.message === 'canceled'
+    ) {
+      console.log('Requisição cancelada pelo usuário');
+      throw new Error('Requisição cancelada pelo usuário');
+    }
+    logDetailedError(error);
+    throw new Error(openRouterErrorMessage(error));
+  }
+};
+
+/**
  * Função para enviar um prompt de texto para modelos de linguagem
  * @param prompt Texto para enviar ao modelo ou array de mensagens (histórico)
  * @param options Opções adicionais como temperatura, max_tokens, modelo e streaming
@@ -339,13 +538,14 @@ export const generateText = async (
       messages = [{ role: 'user', content: prompt }];
     }
 
-    // Sem `provider.sort` / `:nitro`: o OpenRouter escolhe o provedor padrão (Balanced).
+    const provider = openRouterProviderPreferences();
     const request: Record<string, unknown> = {
       model: toDefaultProviderModel(options.model || AVAILABLE_MODELS.DEEPSEEK_V4_FLASH),
       messages: messages,
       temperature: options.temperature,
       max_tokens: options.max_tokens,
-      stream: streaming
+      stream: streaming,
+      provider,
     };
     if (options.response_format) {
       request.response_format = options.response_format;
@@ -356,7 +556,7 @@ export const generateText = async (
     }
 
     console.log(
-      `Enviando texto para OpenRouter model=${request.model} streaming=${streaming} max_tokens=${options.max_tokens || 'default'}`,
+      `Enviando texto para OpenRouter model=${request.model} streaming=${streaming} max_tokens=${options.max_tokens || 'default'} sort=${provider.sort} max_output=$${provider.max_price.completion}/M`,
     );
 
     // Configuração básica para a requisição
@@ -382,44 +582,10 @@ export const generateText = async (
       });
 
       return response.data;
-    } else {
-      const response = await axios.post<OpenRouterResponse>(API_URL, request, config);
-      const choice = response.data?.choices?.[0] as any;
-      const content = typeof choice?.message?.content === 'string'
-        ? choice.message.content
-        : '';
-      const usage = response.data?.usage as any;
-      console.log(
-        `OpenRouter ok model=${request.model} finish=${choice?.finish_reason || 'unknown'} content_len=${content.length} completion=${usage?.completion_tokens || 0} reasoning=${usage?.completion_tokens_details?.reasoning_tokens || 0}`,
-      );
-      if (content.trim()) {
-        return content;
-      }
-      const retry = nextOpenRouterLengthRetry(
-        options.max_tokens,
-        choice?.finish_reason,
-        content,
-        Boolean(options.lengthRetry),
-      );
-      if (retry) {
-        console.warn(
-          `OpenRouter empty finish=${choice?.finish_reason} reasoning=${usage?.completion_tokens_details?.reasoning_tokens || 0}; retrying max_tokens=${retry.max_tokens} with capped hidden thinking`,
-        );
-        return generateText(
-          prompt,
-          {
-            ...options,
-            max_tokens: retry.max_tokens,
-            reasoning: retry.reasoning,
-            lengthRetry: true,
-          },
-          abortController,
-        );
-      }
-      throw new Error(
-        `OpenRouter retornou resposta vazia (finish=${choice?.finish_reason || 'unknown'}, reasoning_tokens=${usage?.completion_tokens_details?.reasoning_tokens || 0})`,
-      );
     }
+
+    const meta = await generateTextWithMeta(prompt, options, abortController);
+    return meta.content;
   } catch (error: any) {
     // Verifica se o erro foi causado por um abort manual
     if (

@@ -3,12 +3,51 @@ import test from 'node:test';
 
 import {
   nextOpenRouterLengthRetry,
+  OPENROUTER_MAX_COMPLETION_USD_PER_MILLION,
   openRouterErrorMessage,
+  openRouterProviderPreferences,
   sanitizeOpenRouterReasoning,
   STORY_REASONING_HIDDEN,
   storyCompletionBudget,
 } from '../src/services/openrouter.service';
 import { DEFAULT_OPENROUTER_MODEL } from '../src/config/ai-models.config';
+
+test('routes OpenRouter to the fastest provider at or below $0.28/M output', () => {
+  const previousSort = process.env.OPENROUTER_PROVIDER_SORT;
+  const previousPrice = process.env.OPENROUTER_MAX_OUTPUT_PRICE;
+  delete process.env.OPENROUTER_PROVIDER_SORT;
+  delete process.env.OPENROUTER_MAX_OUTPUT_PRICE;
+  try {
+    assert.equal(OPENROUTER_MAX_COMPLETION_USD_PER_MILLION, 0.28);
+    assert.deepEqual(openRouterProviderPreferences(), {
+      sort: 'throughput',
+      max_price: { completion: 0.28 },
+    });
+  } finally {
+    if (previousSort === undefined) delete process.env.OPENROUTER_PROVIDER_SORT;
+    else process.env.OPENROUTER_PROVIDER_SORT = previousSort;
+    if (previousPrice === undefined) delete process.env.OPENROUTER_MAX_OUTPUT_PRICE;
+    else process.env.OPENROUTER_MAX_OUTPUT_PRICE = previousPrice;
+  }
+});
+
+test('allows env overrides for OpenRouter sort and output price cap', () => {
+  const previousSort = process.env.OPENROUTER_PROVIDER_SORT;
+  const previousPrice = process.env.OPENROUTER_MAX_OUTPUT_PRICE;
+  process.env.OPENROUTER_PROVIDER_SORT = 'latency';
+  process.env.OPENROUTER_MAX_OUTPUT_PRICE = '0.14';
+  try {
+    assert.deepEqual(openRouterProviderPreferences(), {
+      sort: 'latency',
+      max_price: { completion: 0.14 },
+    });
+  } finally {
+    if (previousSort === undefined) delete process.env.OPENROUTER_PROVIDER_SORT;
+    else process.env.OPENROUTER_PROVIDER_SORT = previousSort;
+    if (previousPrice === undefined) delete process.env.OPENROUTER_MAX_OUTPUT_PRICE;
+    else process.env.OPENROUTER_MAX_OUTPUT_PRICE = previousPrice;
+  }
+});
 
 test('story sheets default to DeepSeek V4 Flash, not Codex', () => {
   assert.equal(DEFAULT_OPENROUTER_MODEL, 'deepseek/deepseek-v4-flash-0731');
