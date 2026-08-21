@@ -3,6 +3,9 @@ import test from 'node:test';
 
 import {
   compactCastAndPlaces,
+  compactCastForSpine,
+  compactLockedSeries,
+  compactLockedWorld,
   compactProjectForBible,
   compactSeriesContract,
   filterRecurringEnvironments,
@@ -61,8 +64,11 @@ test('bible project JSON keeps the brief and drops chat-workflow noise', () => {
     episodes: [],
     references: [],
   });
-  assert.equal(compact.title, 'Novo microdrama');
-  assert.equal(compact.seriesBible.background, 'Cidade moderna');
+  assert.equal(compact.title, undefined);
+  assert.equal(compact.genre, undefined);
+  assert.equal(compact.seriesBible.background, undefined);
+  assert.equal(compact.seriesBible.visual_style, undefined);
+  assert.equal(compact.seriesBible.trope, undefined);
   assert.equal(compact.seriesBible.language, 'Português (Brasil)');
   assert.equal(compact.seriesBible.episode_duration_min_seconds, 90);
   assert.equal(compact.seriesBible.episode_duration_max_seconds, 120);
@@ -71,6 +77,23 @@ test('bible project JSON keeps the brief and drops chat-workflow noise', () => {
   assert.equal(compact.seriesBible.creation_stage, undefined);
   assert.equal(compact.seriesBible.workflow, undefined);
   assert.equal(compact.episodes, undefined);
+});
+
+test('bible project JSON keeps a chosen medium, not catalog leftovers', () => {
+  const compact = compactProjectForBible({
+    title: 'Laços no Morro',
+    genre: 'Suspense íntimo',
+    targetEpisodeCount: 50,
+    seriesBible: {
+      language: 'Português (Brasil)',
+      visual_style: 'Animação cinematográfica',
+      background: 'Morro com laje e fiação',
+    },
+  });
+  assert.equal(compact.title, 'Laços no Morro');
+  assert.equal(compact.genre, 'Suspense íntimo');
+  assert.equal(compact.seriesBible.visual_style, 'Animação cinematográfica');
+  assert.equal(compact.seriesBible.background, 'Morro com laje e fiação');
 });
 
 test('builds image references from bible sheets so the model does not duplicate the cast', () => {
@@ -137,6 +160,75 @@ test('creates CHARACTER_LOOK files from extra wardrobe looks', () => {
   assert.ok(look);
   assert.equal(look?.id, 'character-lia-look-em-casa');
   assert.equal(look?.metadata.parent_character_id, 'character-lia');
+});
+
+test('locked series JSON drops catalog leftovers before the cast stage', () => {
+  const locked = compactLockedSeries(
+    {
+      title: 'O Último Copo',
+      logline: 'Uma frase',
+      protagonist: 'Lázaro',
+      opposing_force: 'Naldo',
+      world_visual_lock: 'Lajes e antenas no entardecer.',
+      background: '',
+      visual_style: 'Microdrama moderno',
+      speaking_cast: [{ reference_id: 'lazaro', name: 'Lázaro' }],
+    },
+    { visual_style: 'Microdrama moderno', background: 'Cidade moderna', language: 'Português (Brasil)' },
+  );
+  assert.equal(locked.title, 'O Último Copo');
+  assert.equal(locked.language, 'Português (Brasil)');
+  assert.equal(locked.visual_style, undefined);
+  assert.equal(locked.background, undefined);
+  assert.equal(locked.speaking_cast[0].name, 'Lázaro');
+});
+
+test('world JSON keeps jobs and drops wounds, catalog style and empty background', () => {
+  const locked = compactLockedWorld(
+    {
+      title: 'O Último Copo',
+      logline: 'O dono do bar esconde um documento.',
+      world_visual_lock: 'Lajes e antenas no entardecer.',
+      differentiating_mechanism: 'O bar como arquivo vivo',
+      background: '',
+      visual_style: 'Microdrama moderno',
+      speaking_cast: [{ reference_id: 'lazaro', name: 'Lázaro', role: 'Protagonista' }],
+      characters: [{
+        reference_id: 'lazaro',
+        name: 'Lázaro',
+        role: 'Protagonista',
+        job: 'Dono do último bar',
+        goal: 'Salvar o bar',
+        wound: 'Perdeu a esposa',
+      }],
+    },
+    { visual_style: 'Microdrama moderno', language: 'Português (Brasil)' },
+  );
+  assert.equal(locked.title, 'O Último Copo');
+  assert.equal(locked.language, 'Português (Brasil)');
+  assert.equal(locked.visual_style, undefined);
+  assert.equal(locked.background, undefined);
+  assert.equal(locked.speaking_cast, undefined);
+  assert.equal(locked.people[0].job, 'Dono do último bar');
+  assert.equal(locked.people[0].wound, undefined);
+  assert.equal(locked.differentiating_mechanism, 'O bar como arquivo vivo');
+});
+
+test('spine cast JSON keeps jobs and drops wounds', () => {
+  const compact = compactCastForSpine({
+    characters: [{
+      reference_id: 'lazaro',
+      name: 'Lázaro',
+      role: 'Protagonista',
+      job: 'Dono do bar',
+      wound: 'Perdeu a esposa',
+    }],
+    environments: [{ reference_id: 'env-bar', name: 'Bar do Lázaro', kind: 'hangout' }],
+    props: [{ name: 'Documento', story_function: 'chave' }],
+  });
+  assert.equal(compact.characters[0].job, 'Dono do bar');
+  assert.equal('wound' in compact.characters[0], false);
+  assert.equal(compact.environments[0].name, 'Bar do Lázaro');
 });
 
 test('architecture JSON splits contract from cast and places', () => {

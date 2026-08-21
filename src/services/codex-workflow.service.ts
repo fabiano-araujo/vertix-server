@@ -4,6 +4,9 @@ import { INVALID_AI_JSON_MESSAGE, parseAiJsonObject, parseAiJsonObjectFromModel 
 import { DEFAULT_OPENROUTER_MODEL, resolveModel } from '../config/ai-models.config';
 import {
   compactCastAndPlaces,
+  compactCastForSpine,
+  compactLockedSeries,
+  compactLockedWorld,
   compactPlaces,
   compactProjectForBible,
   compactSeriesContract,
@@ -22,6 +25,10 @@ import {
   buildRetentionProfileFromProject,
   clampEpisodeDuration,
   clampReservedReveals,
+  blocksOverlappingRange,
+  compactBlockMap,
+  compactReservedRevealsForSpine,
+  compactRetentionForMap,
   compactSpineForPrompt,
   DEFAULT_OUTLINE_BATCH_SIZE,
   ensureFullSpine,
@@ -62,6 +69,7 @@ export interface CodexWorkflowRequest {
   batchSize?: number;
   instruction?: string;
   codexThreadId?: string;
+  stopAfter?: 'nucleus' | 'cast' | 'world' | 'architecture' | 'spine';
 }
 
 type ProgressCallback = (
@@ -380,7 +388,7 @@ const thisCallLine = (
   }
   switch (action) {
     case 'GENERATE_SERIES_OUTLINE':
-      return 'THIS CALL follows only the stage contract below. USER_INSTRUCTION is the story idea; genre, setting and counts live in PROJECT_DATA_JSON.';
+      return 'THIS CALL follows only the stage contract below. USER_INSTRUCTION is the story idea; infer genre, world and visual language from it. Counts live in PROJECT_DATA_JSON.';
     case 'GENERATE_STORY_SHEETS':
       return 'THIS CALL expands visual/dramatic sheets only.';
     case 'GENERATE_EPISODE_SCRIPT':
@@ -458,14 +466,14 @@ LOOKS / VISUALS are script-driven, never a costume template:
 const nucleusContract = `
 THIS STAGE: invent only the series nucleus. No characters sheets, locations, props, episodes, or references.
 
-USER_INSTRUCTION is a vague vibe, not a catalog form. Examples: "dorama na favela", "filme de ação", "anime estilo Avatar", "série estilo Dark". Infer genre, world and visual language from that sentence. Do not ask for extra dropdowns. Never copy a real title (Avatar, Dark, Attack on Titan) as the series title.
+USER_INSTRUCTION is a vague vibe, not a catalog form. Examples: "dorama na favela", "filme de ação", "anime estilo Avatar", "série estilo Dark". Infer genre, world and visual_style from that sentence. Ignore catalog leftovers such as "Microdrama moderno". Do not ask for extra dropdowns. Never copy a real title (Avatar, Dark, Attack on Titan) as the series title.
 
 Title: 2-6 words in the project language. Do not use the raw idea, genre, trope, or setting as the title. Ban arrival/return titles like "O Retorno".
 Premise: the lead already lives inside a ticking claim, power imbalance or forbidden proximity. Ban loglines of arrival/return/new-life ("após anos afastado", "volta para casa", "retorna à favela"). Not a misunderstanding one talk would dissolve.
 Do not make the raw idea the engine. If the brief is a place, invent a specific job, claim or secret inside it.
 Ban ice CEO, demolition-saves-community, Cinderella intern, secret billionaire.
 speaking_cast names: vary origins; Brazil is one option, not the default. Ban Costa, Silva, Menezes, Ventura, Tavares, Oliveira, and the stock pair Caio/Marina.
-world_visual_lock: one photographed-world sentence for THIS series from the vibe + visual_style. Every later place copies this DNA.
+world_visual_lock: one photographed-world sentence invented from the vibe. Every later place copies this DNA. Do not copy a generic preset.
 speaking_cast: 4-5 people as compact roles only (no appearance, no looks). 2-4 speakers plus supporting.
 Episodes later run 90-120 seconds; do not fix a duration here.
 
@@ -490,31 +498,31 @@ result:
 `;
 
 const castContract = `
-THIS STAGE: expand LOCKED_SERIES_JSON.speaking_cast into full character sheets. Keep the same reference_id, name, role, job and want. Do not change the title or logline. No locations, props, episodes, or references.
+THIS STAGE: expand LOCKED_SERIES_JSON.speaking_cast into full character sheets. Keep the same reference_id, name, role, job and want. Do not change the title, logline, or names. No locations, props, episodes, or references.
 If speaking_cast is empty, invent 4-5 people from protagonist and opposing_force.
 
-CAST: original people only. No copied names, faces or likenesses.
+Dress every face for world_visual_lock. Ignore catalog leftovers such as "Microdrama moderno".
+
+CAST: original faces only. No copied likenesses.
 - Freeze-frame ID: hair silhouette + one wardrobe color. No two speakers share hair architecture or color lane. Ban long dark straight hair + black blazer + oval pretty face.
 - Cover vs protagonist: different hair family, silhouette and temperature.
-- Etnia: country + visible ancestry. Vary origins. Names match that country. Ban Costa, Silva, Menezes, Ventura, Tavares, Oliveira. Dialogue in the project language.
-- Protagonist = Engine: costly want, job + position + ONE contrast, mid-decision face. Ban ice CEO, Cinderella intern, secret billionaire, tragic-orphan eyes, vacant model stare.
-- Cover faces have their own want. Supporting: beautiful only if the story needs it, plus ONE phone-readable hook.
-- appearance: labeled card, one field per line (Altura / Proporção cabeça-corpo / Etnia / Compleição / Cabelo / Traços faciais / Roupa e adereços). Also fill appearance_card with the same data.
+- Etnia: country + visible ancestry. Do not recast locked names. Dialogue in the project language.
+- appearance: labeled card, one field per line (Altura / Proporção cabeça-corpo / Etnia / Compleição / Cabelo / Traços faciais / Roupa e adereços). Also fill appearance_card.
 - Personality: 4-5 distinctive behavior tags. Ban forte, misterioso, determinado, leal, inteligente, bonito.
+- Cover faces have their own want. Supporting: beautiful only if the story needs it, plus ONE phone-readable hook.
 
-LOOKS must exist in the sheet files:
-- looks[0] = {id:"default", label:"Aparência padrão", kind:"default", primary:true, wardrobe: same as clothing}. This is the public/work freeze-frame.
-- Protagonist and cover: add exactly 1 extra look when they have a second life the camera will shoot (home / off-duty vs job uniform). {id, label, kind:"wardrobe", needed_because:"which recurring place or life", wardrobe:"clothes/hair-styling only", prompt:"Keep the character from image 1 unchanged. Change the outfit to: <wardrobe>"}.
-- Supporting: default only unless their job costume cannot cover a promised second life.
-- Never auto-add casual/crise/formal templates.
+LOOKS:
+- looks[0] = {id:"default", label:"Aparência padrão", kind:"default", primary:true, wardrobe: same as clothing}. Public/work freeze-frame.
+- Extra look ONLY if that person has a second life the camera will shoot (home vs job uniform). Supporting: default only unless the job costume cannot cover that second life.
+- Never auto-add casual/crise/formal. Do not add "em casa" by default.
 
 result:
 {
   "seriesBiblePatch": {
-    "characters": [{"reference_id":"same as speaking_cast","name":"...","role":"...","appearance":"labeled identity card","appearance_card":{"height_cm":167,"head_body_ratio":"7.5 cabeças","ethnicity":"...","build":"...","hair":"...","facial_features":"...","clothing":"..."},"personality":["tag"],"goal":"...","wound":"...","arc":"...","visual_contract":"...","looks":[{"id":"default","label":"Aparência padrão","kind":"default","primary":true,"wardrobe":"same as clothing"},{"id":"em-casa","label":"em casa","kind":"wardrobe","needed_because":"espaço íntimo","wardrobe":"...","prompt":"Keep the character from image 1 unchanged. Change the outfit to: ..."}]}]
+    "characters": [{"reference_id":"same as speaking_cast","name":"...","role":"...","appearance":"labeled identity card","appearance_card":{"height_cm":167,"head_body_ratio":"7.5 cabeças","ethnicity":"...","build":"...","hair":"...","facial_features":"...","clothing":"..."},"personality":["tag"],"goal":"...","wound":"...","arc":"...","visual_contract":"...","looks":[{"id":"default","label":"Aparência padrão","kind":"default","primary":true,"wardrobe":"same as clothing"}]}]
   }
 }
-Return 4 or 5 characters matching speaking_cast.
+Return exactly the speaking_cast people, same ids, same count.
 `;
 
 const worldContract = `
@@ -523,13 +531,17 @@ THIS STAGE: invent recurring stages and story props for the locked series. Keep 
 PLACES = series stages the camera returns to across many episodes. Create 6 to 8 LOCATION_MASTER sheets.
 Each environment must set kind to one of: home, workplace, hangout, landmark, institution, territory, threshold.
 Copy the same world_visual_lock into every environment. Interiors still show that world.
-Need at least: protagonist home, opposing territory or home, one workplace, one hangout (bar/restaurant they reuse), one landmark (named hill, named street, laje, church square).
-A named street is allowed ONLY as kind:"landmark" if the series returns to THAT street. Do not create a master for a generic street, sidewalk, alley, or one-off walk.
+
+Named places already in the logline or jobs ARE masters. If the engine is a bar, that bar is the workplace (and the hangout). Do not invent a second bar/restaurant.
+Need: protagonist home, opposing territory or home, the named workplace from the jobs, one landmark the series returns to (named hill, named street, laje, church square), plus 2-3 more distinct recurring stages so the camera has variety.
+A named street is allowed ONLY as kind:"landmark" if the series returns to THAT street. Do not create a master for a generic street, sidewalk, alley, one-off walk, or "entrada da favela" unless it is a specific named gate used across episodes.
+
+PROPS: 3-5 objects the plot can reuse. Each story_function ties to the locked engine. No generic decoration.
 
 result:
 {
   "seriesBiblePatch": {
-    "environments": [{"reference_id":"location-id","name":"...","kind":"home","recurrence":"series_stage","description":"...","world_visual_lock":"same city sentence","permanent_elements":["..."],"lighting_contract":"...","continuity_rules":["..."]}],
+    "environments": [{"reference_id":"location-id","name":"...","kind":"home","recurrence":"series_stage","description":"...","world_visual_lock":"same world sentence","permanent_elements":["..."],"lighting_contract":"...","continuity_rules":["..."]}],
     "props": [{"reference_id":"prop-id","name":"...","description":"...","story_function":"...","continuity_rules":["..."]}]
   }
 }
@@ -581,8 +593,9 @@ Write in the project language.
 
 const spineChunkContract = (start: number, end: number, target: number) => `
 Create ONLY the compact episode spine for episodes ${start}-${end} of ${target}. This is the season map, not a script.
-Each slot is 1-2 sentences of function. Follow SERIES_CONTRACT_JSON and THIS_BLOCK. Do not pay reserved_reveals before earliest_episode.
-result shape:
+Each slot is 1-2 sentences of function. Follow THIS_BLOCK_JSON. BLOCK_MAP_JSON is ranges and roles only — do not dramatize later blocks.
+Do not invent or hint LOCKED_REVEALS_JSON facts; locked ids stay unpaid. Adjacent pressure_type must differ.
+result:
 {
   "episode_spine": [{"episode":${start},"block_id":"...","function":"exclusive job of this episode in the arc","dominant_question":"...","promise_paid":null,"promise_opened":"p1","pressure_type":"identity|deadline|evidence|intimacy|status|freedom","relationship_shift":"...","conversion_role":"free_funnel|paywall_cliffhanger|post_paywall_payoff|binge_midgame|sunk_cost|season_payoff","must_not":"what this episode is forbidden to resolve"}]
 }
@@ -1025,6 +1038,37 @@ const generateOutlineInStages = async (
       true,
     );
   } else {
+    const existingCharacters = Array.isArray(bible.characters) ? bible.characters as JsonMap[] : [];
+    const existingSpeaking = Array.isArray(bible.speaking_cast) ? bible.speaking_cast as JsonMap[] : [];
+    const hasNucleus = Boolean(
+      String(bible.logline || '').trim() &&
+      (existingSpeaking.length > 0 || existingCharacters.length > 0),
+    );
+    const hasCast = existingCharacters.some((item) => item.appearance || item.appearance_card);
+    const hasWorld = filterRecurringEnvironments(bible.environments).length > 0;
+    const hasArchitecture = hasLockedSeasonArchitecture(bible);
+
+    if (hasNucleus) {
+      patch = {
+        ...bible,
+        episode_cards: Array.isArray(bible.episode_cards) ? bible.episode_cards : [],
+        hook_chain: Array.isArray(bible.hook_chain) ? bible.hook_chain : [],
+        episode_spine: Array.isArray(bible.episode_spine) ? bible.episode_spine : [],
+      };
+      title = String(patch.title || project.title || '').trim();
+      if (title) patch.title = title;
+      result = {
+        title,
+        seriesBiblePatch: patch,
+        episodes: Array.isArray(project.episodes) ? project.episodes as JsonMap[] : [],
+        references: referencesFromBibleSheets(patch),
+        outlineBatch: batch,
+      };
+      conversation = [
+        title || 'Série sem título',
+        String(patch.logline || '').trim(),
+      ].filter(Boolean).join('\n\n');
+    } else {
     const lockedBrief = compactProjectForBible(asMap(request.project));
     const nucleusPrompt = `${commonContract(request, { includeStoryKernel: false })}\n${nucleusContract}\nPROJECT_DATA_JSON:\n${JSON.stringify(lockedBrief)}`;
     const nucleusResult = await generateJson(
@@ -1065,22 +1109,11 @@ const generateOutlineInStages = async (
         : '',
     ].filter(Boolean).join('\n\n');
     await publish(8, title ? `Título: ${title}` : 'Contrato da série pronto', result, conversation, true);
+    if (request.stopAfter === 'nucleus') return result;
+    }
 
-    const lockedSeries = {
-      title,
-      logline: patch.logline,
-      protagonist: patch.protagonist,
-      opposing_force: patch.opposing_force,
-      central_question: patch.central_question,
-      big_expectation: patch.big_expectation,
-      emotional_fantasy: patch.emotional_fantasy,
-      differentiating_mechanism: patch.differentiating_mechanism,
-      world_visual_lock: patch.world_visual_lock,
-      language: patch.language || bible.language,
-      background: bible.background,
-      visual_style: bible.visual_style,
-      speaking_cast: Array.isArray(patch.speaking_cast) ? patch.speaking_cast : [],
-    };
+    if (!hasCast) {
+    const lockedSeries = compactLockedSeries({ ...patch, title }, bible);
     const castPrompt = `${lockedOutlineContract(request)}\n${castContract}\nLOCKED_SERIES_JSON:\n${JSON.stringify(lockedSeries)}`;
     const castResult = await generateJson(
       model,
@@ -1104,16 +1137,25 @@ const generateOutlineInStages = async (
       ),
     );
     const castPatch = asMap(castResult.seriesBiblePatch);
-    patch.characters = Array.isArray(castPatch.characters) ? castPatch.characters : [];
+    const previousCast = Array.isArray(patch.speaking_cast) ? patch.speaking_cast as JsonMap[] : [];
+    const previousById = new Map(previousCast.map((item) => [String(item.reference_id || ''), item]));
+    patch.characters = (Array.isArray(castPatch.characters) ? castPatch.characters as JsonMap[] : []).map((item) => {
+      const previous = previousById.get(String(item.reference_id || ''));
+      return {
+        ...item,
+        job: item.job || previous?.job,
+        want: item.want || previous?.want,
+      };
+    });
     delete patch.speaking_cast;
     result.references = referencesFromBibleSheets(patch);
     conversation = `${conversation}\n\nElenco: ${(patch.characters as JsonMap[]).map((item) => item.name).filter(Boolean).join(', ')}`.trim();
     await publish(12, 'Elenco e visuais prontos', result, conversation, true);
+    }
+    if (request.stopAfter === 'cast') return result;
 
-    const worldPrompt = `${lockedOutlineContract(request)}\n${worldContract}\nLOCKED_SERIES_JSON:\n${JSON.stringify({
-      ...lockedSeries,
-      characters: compactCastAndPlaces(patch).characters,
-    })}`;
+    if (!hasWorld) {
+    const worldPrompt = `${lockedOutlineContract(request)}\n${worldContract}\nLOCKED_SERIES_JSON:\n${JSON.stringify(compactLockedWorld({ ...patch, title }, bible))}`;
     const worldResult = await generateJson(
       model,
       worldPrompt,
@@ -1148,7 +1190,10 @@ const generateOutlineInStages = async (
     result.references = referencesFromBibleSheets(patch);
     conversation = `${conversation}\n\nPalcos: ${(patch.environments as JsonMap[]).map((item) => item.name).filter(Boolean).join(' · ')}`.trim();
     await publish(16, 'Palcos recorrentes prontos', result, conversation, true);
+    }
+    if (request.stopAfter === 'world') return result;
 
+    if (!hasArchitecture) {
     const architecturePrompt = `${lockedOutlineContract(request)}\n${architectureContract(target)}\nRETENTION_PROFILE_JSON:\n${JSON.stringify(profile)}\nPLANNED_BLOCKS_JSON:\n${JSON.stringify(plannedBlocks)}\nSERIES_CONTRACT_JSON:\n${JSON.stringify(compactSeriesContract(patch, String(bible.language || '')))}\nCAST_AND_PROPS_JSON:\n${JSON.stringify(compactCastAndPlaces(patch))}`;
     const architectureResult = await generateJson(
       model,
@@ -1204,13 +1249,22 @@ const generateOutlineInStages = async (
       profile.paywall_episode ? `\nPaywall no EP${profile.paywall_episode}` : ''
     }`.trim();
     await publish(22, 'Arquitetura da temporada pronta', result, conversation, true);
+    } else {
+      filledBlocks = applyPlannedBlockRanges(
+        asMap(bible.season_architecture).blocks,
+        plannedBlocks,
+      );
+      reservedReveals = parseReservedReveals(bible.reserved_reveals);
+      spine = Array.isArray(bible.episode_spine) ? bible.episode_spine as EpisodeSpineSlot[] : [];
+    }
+    if (request.stopAfter === 'architecture') return result;
   }
 
   const chunks = spineChunkRangesIn(batch.fromEpisode, spineThrough);
   for (let index = 0; index < chunks.length; index += 1) {
     const chunk = chunks[index];
     const pct = 22 + Math.round(((index + 1) / Math.max(chunks.length, 1)) * 12);
-    const spinePrompt = `${lockedOutlineContract(request)}\n${spineChunkContract(chunk.start, chunk.end, target)}\nOUTLINE_BATCH_JSON:\n${JSON.stringify(batch)}\nRETENTION_PROFILE_JSON:\n${JSON.stringify(profile)}\nSEASON_BLOCKS_JSON:\n${JSON.stringify(filledBlocks)}\nRESERVED_REVEALS_JSON:\n${JSON.stringify(reservedReveals)}\nSERIES_CONTRACT_JSON:\n${JSON.stringify(compactSeriesContract(patch))}\nCAST_AND_PROPS_JSON:\n${JSON.stringify(compactCastAndPlaces(patch))}\nPREVIOUS_SPINE_JSON:\n${JSON.stringify(compactSpineForPrompt(spine))}\nSERIES_TITLE: ${title}`;
+    const spinePrompt = `${lockedOutlineContract(request)}\n${spineChunkContract(chunk.start, chunk.end, target)}\nTHIS_BLOCK_JSON:\n${JSON.stringify(blocksOverlappingRange(filledBlocks, chunk.start, chunk.end))}\nBLOCK_MAP_JSON:\n${JSON.stringify(compactBlockMap(filledBlocks))}\nRETENTION_JSON:\n${JSON.stringify(compactRetentionForMap(profile))}\nLOCKED_REVEALS_JSON:\n${JSON.stringify(compactReservedRevealsForSpine(reservedReveals, chunk.end))}\nSERIES_CONTRACT_JSON:\n${JSON.stringify(compactSeriesContract(patch))}\nCAST_AND_PLACES_JSON:\n${JSON.stringify(compactCastForSpine(patch))}\nPREVIOUS_SPINE_JSON:\n${JSON.stringify(compactSpineForPrompt(spine))}`;
     const spineResult = await generateJson(
       model,
       spinePrompt,
@@ -1245,6 +1299,7 @@ const generateOutlineInStages = async (
   patch.episode_spine = spine;
   conversation = `${conversation}\n\nEspinha até o EP${spineThrough} pronta para este lote.`.trim();
   await publish(34, `Espinha do lote EP${batch.fromEpisode}-${batch.throughEpisode} pronta`, result, conversation, true);
+  if (request.stopAfter === 'spine') return result;
 
   const cardCount = Math.max(1, batch.throughEpisode - batch.fromEpisode + 1);
   for (let number = batch.fromEpisode; number <= batch.throughEpisode; number += 1) {

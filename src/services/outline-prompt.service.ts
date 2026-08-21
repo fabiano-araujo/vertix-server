@@ -10,6 +10,22 @@ const asList = (value: unknown): JsonMap[] =>
     ? value.filter((item): item is JsonMap => Boolean(item) && typeof item === 'object' && !Array.isArray(item))
     : [];
 
+const PLACEHOLDER_BRIEF_VALUES = new Set([
+  'novo microdrama',
+  'new microdrama',
+  'microdrama moderno',
+  'cidade moderna',
+  'segunda chance',
+  'romance com reviravolta',
+  '14 anos',
+]);
+
+const meaningfulBriefField = (value: unknown): string | undefined => {
+  const text = String(value ?? '').trim();
+  if (!text) return undefined;
+  return PLACEHOLDER_BRIEF_VALUES.has(text.toLowerCase()) ? undefined : text;
+};
+
 /** Drop Flutter pipeline chatter so the bible stage is not told to write cards. */
 export const sanitizeOutlineInstruction = (instruction?: string): string => {
   const raw = String(instruction || '').trim();
@@ -43,18 +59,64 @@ export const sanitizeOutlineInstruction = (instruction?: string): string => {
     .join('\n');
 };
 
+const pickBriefField = (...values: unknown[]): string | undefined => {
+  for (const value of values) {
+    const cleaned = meaningfulBriefField(value);
+    if (cleaned) return cleaned;
+  }
+  return undefined;
+};
+
+export const compactLockedSeries = (patch: JsonMap, bible: JsonMap = {}): JsonMap => ({
+  title: pickBriefField(patch.title),
+  logline: pickBriefField(patch.logline),
+  protagonist: pickBriefField(patch.protagonist),
+  opposing_force: pickBriefField(patch.opposing_force),
+  central_question: pickBriefField(patch.central_question),
+  big_expectation: pickBriefField(patch.big_expectation),
+  emotional_fantasy: pickBriefField(patch.emotional_fantasy),
+  differentiating_mechanism: pickBriefField(patch.differentiating_mechanism),
+  world_visual_lock: pickBriefField(patch.world_visual_lock),
+  language: pickBriefField(patch.language, bible.language),
+  genre: pickBriefField(patch.genre, bible.genre),
+  background: pickBriefField(patch.background, bible.background),
+  visual_style: pickBriefField(patch.visual_style, bible.visual_style),
+  speaking_cast: Array.isArray(patch.speaking_cast) ? patch.speaking_cast : [],
+});
+
+export const compactLockedWorld = (patch: JsonMap, bible: JsonMap = {}): JsonMap => {
+  const peopleSource = asList(patch.characters).length
+    ? patch.characters
+    : patch.speaking_cast;
+  return {
+    title: pickBriefField(patch.title),
+    logline: pickBriefField(patch.logline),
+    world_visual_lock: pickBriefField(patch.world_visual_lock),
+    language: pickBriefField(patch.language, bible.language),
+    genre: pickBriefField(patch.genre, bible.genre),
+    visual_style: pickBriefField(patch.visual_style, bible.visual_style),
+    differentiating_mechanism: pickBriefField(patch.differentiating_mechanism),
+    people: asList(peopleSource).map((item) => ({
+      reference_id: item.reference_id,
+      name: item.name,
+      role: item.role,
+      job: item.job || undefined,
+    })),
+  };
+};
+
 export const compactProjectForBible = (project: JsonMap): JsonMap => {
   const bible = asMap(project.seriesBible);
   return {
-    title: project.title,
-    genre: project.genre || bible.genre || undefined,
+    title: meaningfulBriefField(project.title),
+    genre: meaningfulBriefField(project.genre) || meaningfulBriefField(bible.genre),
     targetEpisodeCount: project.targetEpisodeCount,
     seriesBible: {
       language: bible.language,
-      visual_style: bible.visual_style || undefined,
-      genre: bible.genre || undefined,
-      background: bible.background || undefined,
-      trope: bible.trope || undefined,
+      visual_style: meaningfulBriefField(bible.visual_style),
+      genre: meaningfulBriefField(bible.genre),
+      background: meaningfulBriefField(bible.background),
+      trope: meaningfulBriefField(bible.trope),
       episode_duration_min_seconds: bible.episode_duration_min_seconds || 90,
       episode_duration_max_seconds: bible.episode_duration_max_seconds || 120,
       logline: bible.logline || undefined,
@@ -170,6 +232,21 @@ export const compactCastAndPlaces = (patch: JsonMap) => ({
     role: item.role,
     goal: item.goal,
     wound: item.wound,
+  })),
+  environments: compactPlaces(patch),
+  props: asList(patch.props).map((item) => ({
+    name: item.name,
+    story_function: item.story_function,
+  })),
+});
+
+/** Spine map: names and jobs, not wounds that contradict later reveals. */
+export const compactCastForSpine = (patch: JsonMap) => ({
+  characters: asList(patch.characters).map((item) => ({
+    reference_id: item.reference_id,
+    name: item.name,
+    role: item.role,
+    job: item.job || undefined,
   })),
   environments: compactPlaces(patch),
   props: asList(patch.props).map((item) => ({

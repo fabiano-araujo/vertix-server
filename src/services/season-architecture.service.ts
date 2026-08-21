@@ -507,6 +507,51 @@ export const lockedRevealsForEpisode = (
 ): ReservedReveal[] =>
   reveals.filter((item) => asPositiveInt(item.earliest_episode, 999) > episodeNumber);
 
+export const compactRetentionForMap = (profile: RetentionProfile) => ({
+  episode_count: profile.episode_count,
+  paywall_episode: profile.paywall_episode,
+  payoff_after_paywall_episode: profile.payoff_after_paywall_episode,
+  free_episode_count: profile.free_episode_count,
+  primary_conversion: profile.primary_conversion,
+});
+
+export const compactBlockMap = (blocks: Array<SeasonBlockPlan & Record<string, any>>) =>
+  (Array.isArray(blocks) ? blocks : []).map((item) => ({
+    id: item.id,
+    start: item.start,
+    end: item.end,
+    role: item.role,
+    conversion_role: item.conversion_role,
+    must_not_resolve: item.must_not_resolve,
+  }));
+
+export const blocksOverlappingRange = (
+  blocks: Array<SeasonBlockPlan & Record<string, any>>,
+  start: number,
+  end: number,
+) =>
+  (Array.isArray(blocks) ? blocks : []).filter(
+    (item) => Number(item.start) <= end && Number(item.end) >= start,
+  );
+
+/** Spine writers get later-reveal ids, not the facts they must not spend. */
+export const compactReservedRevealsForSpine = (
+  reveals: ReservedReveal[],
+  throughEpisode: number,
+) =>
+  reveals.map((item) => {
+    const earliest = asPositiveInt(item.earliest_episode, 999);
+    if (earliest > throughEpisode) {
+      return { id: item.id, earliest_episode: earliest, locked: true };
+    }
+    return {
+      id: item.id,
+      fact: item.fact,
+      earliest_episode: earliest,
+      payoff_episode: item.payoff_episode,
+    };
+  });
+
 export const compactSpineForPrompt = (
   spine: EpisodeSpineSlot[],
   upToExclusive?: number,

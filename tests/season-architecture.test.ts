@@ -5,7 +5,11 @@ import {
   applyPlannedBlockRanges,
   beatEngineForDuration,
   blockForEpisode,
+  blocksOverlappingRange,
   buildRetentionProfile,
+  compactBlockMap,
+  compactReservedRevealsForSpine,
+  compactRetentionForMap,
   compactSpineForPrompt,
   ensureFullSpine,
   lockedRevealsForEpisode,
@@ -153,6 +157,22 @@ test('spine chunks and locked reveals keep EP5 from spending an EP42 secret', ()
     { id: 'job', fact: 'the contract is fake', earliest_episode: 4, payoff_episode: 6 },
   ], 5);
   assert.deepEqual(locked.map((item) => item.id), ['father']);
+  const hidden = compactReservedRevealsForSpine([
+    { id: 'r1', fact: 'O documento é falso', earliest_episode: 42, payoff_episode: 48 },
+    { id: 'r2', fact: 'pago agora', earliest_episode: 3, payoff_episode: 5 },
+  ], 6);
+  assert.deepEqual(hidden[0], { id: 'r1', earliest_episode: 42, locked: true });
+  assert.equal(hidden[1].fact, 'pago agora');
+  const profile = buildRetentionProfile({ episodeCount: 50 });
+  const retention = compactRetentionForMap(profile);
+  assert.equal(retention.episode_count, 50);
+  assert.equal((retention as { beat_engine_first?: unknown }).beat_engine_first, undefined);
+  const seasonBlocks = applyPlannedBlockRanges(
+    [{ id: 'premise_hook', opening_state: 'spoiler do final' }],
+    plannedSeasonBlocks(50, 8),
+  );
+  assert.equal(blocksOverlappingRange(seasonBlocks, 1, 6)[0].id, 'premise_hook');
+  assert.equal('opening_state' in compactBlockMap(seasonBlocks)[5], false);
 
   const blocks = plannedSeasonBlocks(8, 3);
   const merged = mergeSpine(
