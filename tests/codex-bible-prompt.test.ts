@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  compactCastAndPlaces,
   compactProjectForBible,
+  compactSeriesContract,
   filterRecurringEnvironments,
   isGenericStreetLocation,
   referencesFromBibleSheets,
@@ -128,4 +130,27 @@ test('creates CHARACTER_LOOK files from extra wardrobe looks', () => {
   assert.ok(look);
   assert.equal(look?.id, 'character-lia-look-em-casa');
   assert.equal(look?.metadata.parent_character_id, 'character-lia');
+});
+
+test('architecture JSON splits contract from cast and places', () => {
+  const patch = {
+    title: 'Laços que Permanecem',
+    logline: 'Uma frase',
+    protagonist: 'Caio',
+    opposing_force: 'Eduardo',
+    characters: [{ reference_id: 'caio', name: 'Caio', role: 'Protagonista', goal: 'x', wound: 'y' }],
+    environments: [
+      { reference_id: 'loc-home', name: 'Casa', kind: 'home' },
+      { reference_id: 'loc-street', name: 'Rua', kind: 'street' },
+    ],
+    props: [{ name: 'Chave', story_function: 'acesso' }],
+  };
+  const contract = compactSeriesContract(patch, 'Português (Brasil)');
+  const cast = compactCastAndPlaces(patch);
+  assert.equal(contract.title, 'Laços que Permanecem');
+  assert.equal((contract as { characters?: unknown }).characters, undefined);
+  assert.equal((cast as { title?: unknown }).title, undefined);
+  assert.equal(cast.characters.length, 1);
+  assert.equal(cast.environments.length, 1);
+  assert.equal(cast.environments[0].name, 'Casa');
 });

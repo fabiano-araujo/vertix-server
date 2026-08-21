@@ -140,7 +140,43 @@ const referenceFromSheet = (
   };
 };
 
-/** Image masters are derived from sheets so the model does not write the cast twice. */
+export const compactPlaces = (patch: JsonMap) =>
+  filterRecurringEnvironments(patch.environments || patch.location_bible).map((item) => ({
+    reference_id: item.reference_id,
+    name: item.name,
+    kind: item.kind || '',
+    recurrence: item.recurrence || 'series_stage',
+  }));
+
+/** Dramatic lock only — never mix with cast/places. */
+export const compactSeriesContract = (patch: JsonMap, language?: string) => ({
+  title: patch.title,
+  logline: patch.logline,
+  protagonist: patch.protagonist,
+  opposing_force: patch.opposing_force,
+  central_question: patch.central_question,
+  big_expectation: patch.big_expectation,
+  emotional_fantasy: patch.emotional_fantasy,
+  differentiating_mechanism: patch.differentiating_mechanism,
+  world_visual_lock: patch.world_visual_lock,
+  language: patch.language || language,
+});
+
+/** Cast and recurring stages only — no title/logline duplicate. */
+export const compactCastAndPlaces = (patch: JsonMap) => ({
+  characters: asList(patch.characters).map((item) => ({
+    reference_id: item.reference_id,
+    name: item.name,
+    role: item.role,
+    goal: item.goal,
+    wound: item.wound,
+  })),
+  environments: compactPlaces(patch),
+  props: asList(patch.props).map((item) => ({
+    name: item.name,
+    story_function: item.story_function,
+  })),
+});
 export const referencesFromBibleSheets = (
   patch: JsonMap,
   modelReferences: unknown = [],
