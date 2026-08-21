@@ -29,6 +29,9 @@ favela
   assert.doesNotMatch(cleaned, /primeiro lote de cartoes/);
   assert.doesNotMatch(cleaned, /Modo do roteirista/);
   assert.doesNotMatch(cleaned, /Duracao do EP1/);
+  assert.doesNotMatch(cleaned, /^Genero:/m);
+  assert.doesNotMatch(cleaned, /Romance com reviravolta/);
+  assert.doesNotMatch(cleaned, /Cenario:/);
   assert.equal(
     cleaned.split('\n').filter((line) => line.toLowerCase() === 'favela').length,
     0,
@@ -61,6 +64,10 @@ test('bible project JSON keeps the brief and drops chat-workflow noise', () => {
   assert.equal(compact.title, 'Novo microdrama');
   assert.equal(compact.seriesBible.background, 'Cidade moderna');
   assert.equal(compact.seriesBible.language, 'Português (Brasil)');
+  assert.equal(compact.seriesBible.episode_duration_min_seconds, 90);
+  assert.equal(compact.seriesBible.episode_duration_max_seconds, 120);
+  assert.equal(compact.seriesBible.rating, undefined);
+  assert.equal(compact.seriesBible.first_episode_duration_seconds, undefined);
   assert.equal(compact.seriesBible.creation_stage, undefined);
   assert.equal(compact.seriesBible.workflow, undefined);
   assert.equal(compact.episodes, undefined);

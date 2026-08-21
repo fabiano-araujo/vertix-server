@@ -17,6 +17,7 @@ import {
   spineChunkRangesIn,
   spineThroughForBatch,
   STORY_KERNEL,
+  clampEpisodeDuration,
 } from '../src/services/season-architecture.service';
 
 const coveredEpisodes = (episodeCount: number, paywall: number | null) => {
@@ -86,6 +87,17 @@ test('beat engine cuts the button in the last seconds for TikTok-speed retention
   const first = beatEngineForDuration(120);
   assert.equal(first.hook, '0-15s');
   assert.equal(first.button, '110-120s');
+});
+
+test('episode duration is chosen inside 90-120s, not a fixed EP1/rest split', () => {
+  assert.equal(clampEpisodeDuration(60), 90);
+  assert.equal(clampEpisodeDuration(180), 120);
+  assert.equal(clampEpisodeDuration(105), 105);
+  assert.equal(clampEpisodeDuration('97'), 97);
+  assert.equal(clampEpisodeDuration(null), 105);
+  const profile = buildRetentionProfile({ episodeCount: 8 });
+  assert.equal(profile.episode_duration_min_seconds, 90);
+  assert.equal(profile.episode_duration_max_seconds, 120);
 });
 
 test('story kernel is compact and bans arrival openings once', () => {

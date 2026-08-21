@@ -20,11 +20,11 @@ import {
   applyPlannedBlockRanges,
   beatEngineForDuration,
   buildRetentionProfileFromProject,
+  clampEpisodeDuration,
   clampReservedReveals,
   compactSpineForPrompt,
   DEFAULT_OUTLINE_BATCH_SIZE,
   ensureFullSpine,
-  episodeDurationSeconds,
   hasLockedSeasonArchitecture,
   lockedRevealsForEpisode,
   mergeSpine,
@@ -380,7 +380,7 @@ const thisCallLine = (
   }
   switch (action) {
     case 'GENERATE_SERIES_OUTLINE':
-      return 'THIS CALL follows only the stage contract below. USER_INSTRUCTION is story brief (idea, genre, setting).';
+      return 'THIS CALL follows only the stage contract below. USER_INSTRUCTION is the story idea; genre, setting and counts live in PROJECT_DATA_JSON.';
     case 'GENERATE_STORY_SHEETS':
       return 'THIS CALL expands visual/dramatic sheets only.';
     case 'GENERATE_EPISODE_SCRIPT':
@@ -458,13 +458,16 @@ LOOKS / VISUALS are script-driven, never a costume template:
 const nucleusContract = `
 THIS STAGE: invent only the series nucleus. No characters sheets, locations, props, episodes, or references.
 
+USER_INSTRUCTION is a vague vibe, not a catalog form. Examples: "dorama na favela", "filme de ação", "anime estilo Avatar", "série estilo Dark". Infer genre, world and visual language from that sentence. Do not ask for extra dropdowns. Never copy a real title (Avatar, Dark, Attack on Titan) as the series title.
+
 Title: 2-6 words in the project language. Do not use the raw idea, genre, trope, or setting as the title. Ban arrival/return titles like "O Retorno".
 Premise: the lead already lives inside a ticking claim, power imbalance or forbidden proximity. Ban loglines of arrival/return/new-life ("após anos afastado", "volta para casa", "retorna à favela"). Not a misunderstanding one talk would dissolve.
 Do not make the raw idea the engine. If the brief is a place, invent a specific job, claim or secret inside it.
 Ban ice CEO, demolition-saves-community, Cinderella intern, secret billionaire.
 speaking_cast names: vary origins; Brazil is one option, not the default. Ban Costa, Silva, Menezes, Ventura, Tavares, Oliveira, and the stock pair Caio/Marina.
-world_visual_lock: one photographed-city sentence for THIS series (read background + visual_style). Every later place copies this DNA.
+world_visual_lock: one photographed-world sentence for THIS series from the vibe + visual_style. Every later place copies this DNA.
 speaking_cast: 4-5 people as compact roles only (no appearance, no looks). 2-4 speakers plus supporting.
+Episodes later run 90-120 seconds; do not fix a duration here.
 
 result:
 {
@@ -472,13 +475,15 @@ result:
   "seriesBiblePatch": {
     "title": "same title",
     "logline": "one sentence in the project language",
+    "genre": "inferred from the vibe",
+    "visual_style": "inferred look, original world",
     "protagonist": "lead name",
     "opposing_force": "opposing name or force",
     "central_question": "season question",
     "big_expectation": "audience promise",
     "emotional_fantasy": "binge feeling",
     "differentiating_mechanism": "specific engine",
-    "world_visual_lock": "one city sentence",
+    "world_visual_lock": "one world sentence",
     "speaking_cast": [{"reference_id":"character-id","name":"...","role":"...","job":"job + position","want":"costly want","contrast":"one visual or social contrast"}]
   }
 }
@@ -584,15 +589,16 @@ result shape:
 Return one object per episode from ${start} to ${end} inclusive. No cards, hooks, scenes, or other episodes.
 `;
 
-const oneEpisodeContract = (episodeNumber: number, target: number, durationSeconds: number) => `
+const oneEpisodeContract = (episodeNumber: number, target: number, minSeconds: number, maxSeconds: number) => `
 Create only episode ${episodeNumber} of ${target}. Dramatize THIS_SPINE_SLOT. Do not invent a different plot.
-result shape:
+Pick duration_seconds between ${minSeconds} and ${maxSeconds} for this episode's job (a single spike closer to ${minSeconds}; denser dialogue closer to ${maxSeconds}). Do not copy a global default.
+result:
 {
-  "episode": {"number":${episodeNumber},"title":"...","summary":"general outline only, 2-4 sentences in the project language","cliffhanger":"visible peak cut on the unanswered question","durationSeconds":${durationSeconds},"status":"OUTLINE_REVIEW_REQUIRED"},
-  "episode_card": {"episode":${episodeNumber},"title":"...","duration_seconds":${durationSeconds},"episode_job":"...","stage_goal":"...","emotional_beat":"...","treatment":"outline starting at the 0:00 irreversible image","value_shift":"... -> ...","cold_open":"0-3s freeze-frame a stranger understands","immediate_goal":"...","obstacle":"...","antagonist_countermove":"...","pressure_type":"...","promise_opened":"...","promise_paid":"...","paywall_role":"none|funnel|paywall_question|post_paywall_payoff|midgame|finale","ad_candidate":"5-12s recuttable image or null","peak_action":"...","exact_cut_point":"...","withheld_answer":"...","next_episode_question":"...","status":"OUTLINE_REVIEW_REQUIRED","script_status":"NOT_STARTED"},
+  "episode": {"number":${episodeNumber},"title":"...","summary":"general outline only, 2-4 sentences in the project language","cliffhanger":"visible peak cut on the unanswered question","durationSeconds":${minSeconds},"status":"OUTLINE_REVIEW_REQUIRED"},
+  "episode_card": {"episode":${episodeNumber},"title":"...","duration_seconds":${minSeconds},"episode_job":"...","stage_goal":"...","emotional_beat":"...","treatment":"outline starting at the 0:00 irreversible image","value_shift":"... -> ...","cold_open":"0-3s freeze-frame a stranger understands","immediate_goal":"...","obstacle":"...","antagonist_countermove":"...","pressure_type":"...","promise_opened":"...","promise_paid":"...","paywall_role":"none|funnel|paywall_question|post_paywall_payoff|midgame|finale","ad_candidate":"5-12s recuttable image or null","peak_action":"...","exact_cut_point":"...","withheld_answer":"...","next_episode_question":"...","status":"OUTLINE_REVIEW_REQUIRED","script_status":"NOT_STARTED"},
   "hook": {"episode":${episodeNumber},"opening_pickup":"pay previous final_hook in the first seconds, or EP1 cold-open","final_hook":"visible peak cut to the next episode","unresolved_questions":["visual question 1","visual question 2","visual question 3"]}
 }
-Use BEAT_ENGINE_JSON for timing. Zip PREVIOUS_HOOK_JSON. Honor conversion_role, LOCKED_REVEALS, and RECENT_CARDS_JSON pressure_type. Recurring action happens in LOCKED_PLACES_JSON (use location_id). A one-off street/sidewalk is location_mode:"transient" with empty location_id — do not invent a new place master. No other episodes, scripts, or takes.
+Scale BEAT_ENGINE_JSON to the duration you picked. Zip PREVIOUS_HOOK_JSON. Honor conversion_role, LOCKED_REVEALS, and RECENT_CARDS_JSON pressure_type. Recurring action happens in LOCKED_PLACES_JSON (use location_id). A one-off street/sidewalk is location_mode:"transient" with empty location_id — do not invent a new place master. No other episodes, scripts, or takes.
 `;
 
 const episodeScriptContract = `
@@ -947,8 +953,8 @@ const generateOutlineInStages = async (
   const bible = asMap(project.seriesBible);
   const profile = buildRetentionProfileFromProject(project);
   const target = profile.episode_count;
-  const firstDuration = profile.first_episode_duration_seconds;
-  const otherDuration = profile.other_episode_duration_seconds;
+  const durationMin = profile.episode_duration_min_seconds;
+  const durationMax = profile.episode_duration_max_seconds;
   const plannedBlocks = plannedSeasonBlocks(target, profile.paywall_episode);
   const requestedFrom = asEpisodeNumber(request.fromEpisode) || 1;
   const batchSize = asEpisodeNumber(request.batchSize) || DEFAULT_OUTLINE_BATCH_SIZE;
@@ -1242,7 +1248,11 @@ const generateOutlineInStages = async (
 
   const cardCount = Math.max(1, batch.throughEpisode - batch.fromEpisode + 1);
   for (let number = batch.fromEpisode; number <= batch.throughEpisode; number += 1) {
-    const duration = episodeDurationSeconds(number, firstDuration, otherDuration);
+    const durationHint = clampEpisodeDuration(
+      Math.round((durationMin + durationMax) / 2),
+      durationMin,
+      durationMax,
+    );
     const previous = (result.episodes as JsonMap[]).find(
       (item) => asEpisodeNumber(item.number) === number - 1,
     );
@@ -1252,7 +1262,7 @@ const generateOutlineInStages = async (
     const thisSlot = spine.find((item) => item.episode === number) || null;
     const idx = number - batch.fromEpisode + 1;
     const pct = 34 + Math.round((idx / cardCount) * 64);
-    const episodePrompt = `${episodeOutlineContract({ ...request, episodeNumber: number })}\n${oneEpisodeContract(number, target, duration)}\nOUTLINE_BATCH_JSON:\n${JSON.stringify(batch)}\nTHIS_SPINE_SLOT:\n${JSON.stringify(thisSlot)}\nNEXT_SPINE_SLOT:\n${JSON.stringify(spine.find((item) => item.episode === number + 1) || null)}\nLOCKED_REVEALS:\n${JSON.stringify(lockedRevealsForEpisode(reservedReveals, number))}\nLOCKED_PLACES_JSON:\n${JSON.stringify(compactPlaces(patch))}\nBEAT_ENGINE_JSON:\n${JSON.stringify(beatEngineForDuration(duration))}\nRECENT_CARDS_JSON:\n${JSON.stringify(recentCardsForPrompt(patch.episode_cards as JsonMap[], number))}\nPREVIOUS_EPISODE_JSON:\n${JSON.stringify(previous || null)}\nPREVIOUS_HOOK_JSON:\n${JSON.stringify(previousHook || null)}\nSERIES_TITLE: ${title}\nPROJECT_DATA_JSON:\n${JSON.stringify(compactSeriesForEpisodeOutline(title, target, patch, spine, number))}`;
+    const episodePrompt = `${episodeOutlineContract({ ...request, episodeNumber: number })}\n${oneEpisodeContract(number, target, durationMin, durationMax)}\nOUTLINE_BATCH_JSON:\n${JSON.stringify(batch)}\nTHIS_SPINE_SLOT:\n${JSON.stringify(thisSlot)}\nNEXT_SPINE_SLOT:\n${JSON.stringify(spine.find((item) => item.episode === number + 1) || null)}\nLOCKED_REVEALS:\n${JSON.stringify(lockedRevealsForEpisode(reservedReveals, number))}\nLOCKED_PLACES_JSON:\n${JSON.stringify(compactPlaces(patch))}\nBEAT_ENGINE_JSON:\n${JSON.stringify(beatEngineForDuration(durationHint))}\nDURATION_RANGE_JSON:\n${JSON.stringify({ min_seconds: durationMin, max_seconds: durationMax })}\nRECENT_CARDS_JSON:\n${JSON.stringify(recentCardsForPrompt(patch.episode_cards as JsonMap[], number))}\nPREVIOUS_EPISODE_JSON:\n${JSON.stringify(previous || null)}\nPREVIOUS_HOOK_JSON:\n${JSON.stringify(previousHook || null)}\nSERIES_TITLE: ${title}\nPROJECT_DATA_JSON:\n${JSON.stringify(compactSeriesForEpisodeOutline(title, target, patch, spine, number))}`;
     const episodeResult = await generateJson(
       model,
       episodePrompt,
@@ -1278,7 +1288,11 @@ const generateOutlineInStages = async (
     const episode: JsonMap = {
       ...episodePayload,
       number,
-      durationSeconds: Number(episodePayload.durationSeconds) || duration,
+      durationSeconds: clampEpisodeDuration(
+        episodePayload.durationSeconds ?? asMap(episodeResult.episode_card).duration_seconds,
+        durationMin,
+        durationMax,
+      ),
       status: 'OUTLINE_REVIEW_REQUIRED',
     };
     const card: JsonMap = {

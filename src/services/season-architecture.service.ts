@@ -15,6 +15,8 @@ export interface RetentionProfile {
   episode_count: number;
   first_episode_duration_seconds: number;
   other_episode_duration_seconds: number;
+  episode_duration_min_seconds: number;
+  episode_duration_max_seconds: number;
   free_episode_count: number;
   paywall_episode: number | null;
   payoff_after_paywall_episode: number | null;
@@ -81,6 +83,20 @@ const asPositiveInt = (value: unknown, fallback: number): number => {
   return Number.isFinite(n) && n > 0 ? Math.trunc(n) : fallback;
 };
 
+export const EPISODE_DURATION_MIN_SECONDS = 90;
+export const EPISODE_DURATION_MAX_SECONDS = 120;
+export const EPISODE_DURATION_DEFAULT_SECONDS = 105;
+
+export const clampEpisodeDuration = (
+  value: unknown,
+  min = EPISODE_DURATION_MIN_SECONDS,
+  max = EPISODE_DURATION_MAX_SECONDS,
+): number => {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n) || n <= 0) return EPISODE_DURATION_DEFAULT_SECONDS;
+  return Math.min(max, Math.max(min, Math.round(n)));
+};
+
 export const episodeDurationSeconds = (
   episodeNumber: number,
   firstDuration: number,
@@ -127,8 +143,8 @@ export const buildRetentionProfile = (input: {
   paywallPosition?: number | null;
 }): RetentionProfile => {
   const episodeCount = Math.max(1, Math.trunc(input.episodeCount || 1));
-  const firstDuration = asPositiveInt(input.firstDuration, 120);
-  const otherDuration = asPositiveInt(input.otherDuration, 60);
+  const firstDuration = asPositiveInt(input.firstDuration, EPISODE_DURATION_MIN_SECONDS);
+  const otherDuration = asPositiveInt(input.otherDuration, EPISODE_DURATION_MAX_SECONDS);
   const distribution = String(input.distributionProfile || 'app_native').trim()
     || 'app_native';
   const social = distribution === 'social_serialized';
@@ -168,11 +184,16 @@ export const buildRetentionProfile = (input: {
 
   const climaxStart = ceilingStart(episodeCount);
 
+  const durationMin = Math.min(firstDuration, otherDuration);
+  const durationMax = Math.max(firstDuration, otherDuration);
+
   return {
     distribution_profile: distribution,
     episode_count: episodeCount,
     first_episode_duration_seconds: firstDuration,
     other_episode_duration_seconds: otherDuration,
+    episode_duration_min_seconds: durationMin,
+    episode_duration_max_seconds: durationMax,
     free_episode_count: paywall == null ? episodeCount : freeCount,
     paywall_episode: paywall,
     payoff_after_paywall_episode: payoffAfter,
@@ -192,12 +213,16 @@ export const buildRetentionProfileFromProject = (
   return buildRetentionProfile({
     episodeCount: asPositiveInt(project.targetEpisodeCount, 8),
     firstDuration: asPositiveInt(
-      bible.first_episode_duration_seconds ?? config.first_episode_duration_seconds,
-      120,
+      bible.episode_duration_min_seconds ??
+        bible.first_episode_duration_seconds ??
+        config.first_episode_duration_seconds,
+      EPISODE_DURATION_MIN_SECONDS,
     ),
     otherDuration: asPositiveInt(
-      bible.episode_duration_seconds ?? config.episode_duration_seconds,
-      60,
+      bible.episode_duration_max_seconds ??
+        bible.episode_duration_seconds ??
+        config.episode_duration_seconds,
+      EPISODE_DURATION_MAX_SECONDS,
     ),
     distributionProfile: String(
       bible.distribution_profile || config.distribution_profile || 'app_native',

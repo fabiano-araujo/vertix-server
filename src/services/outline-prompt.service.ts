@@ -27,6 +27,7 @@ export const sanitizeOutlineInstruction = (instruction?: string): string => {
       /^modo do roteirista:/.test(n) ||
       /^dura[cç][aã]o do /.test(n) ||
       /^dura[cç][aã]o dos demais/.test(n) ||
+      /^(genero|gênero|cenario|cenário|tropo|estilo visual|idioma|classificacao|classificação|episodios|episódios):/.test(n) ||
       (/^(gere|depois gere|reescreva)\b/.test(n) &&
         /(contrato|mapa|cart[oõ]es|paywall|esbo[cç]o)/.test(n));
     if (pipeline) continue;
@@ -46,17 +47,16 @@ export const compactProjectForBible = (project: JsonMap): JsonMap => {
   const bible = asMap(project.seriesBible);
   return {
     title: project.title,
-    genre: project.genre || bible.genre,
+    genre: project.genre || bible.genre || undefined,
     targetEpisodeCount: project.targetEpisodeCount,
     seriesBible: {
       language: bible.language,
-      rating: bible.rating,
-      visual_style: bible.visual_style,
-      genre: bible.genre,
-      background: bible.background,
-      trope: bible.trope,
-      first_episode_duration_seconds: bible.first_episode_duration_seconds,
-      episode_duration_seconds: bible.episode_duration_seconds,
+      visual_style: bible.visual_style || undefined,
+      genre: bible.genre || undefined,
+      background: bible.background || undefined,
+      trope: bible.trope || undefined,
+      episode_duration_min_seconds: bible.episode_duration_min_seconds || 90,
+      episode_duration_max_seconds: bible.episode_duration_max_seconds || 120,
       logline: bible.logline || undefined,
       protagonist: bible.protagonist || undefined,
       opposing_force: bible.opposing_force || undefined,
