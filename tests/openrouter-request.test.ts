@@ -2,10 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  appendStreamText,
   createOpenRouterStreamAccumulation,
+  extractFailedOpenRouterProvider,
   ingestOpenRouterSseLine,
   ingestOpenRouterStreamChunk,
+  isOpenRouterJsonFormatError,
   nextOpenRouterLengthRetry,
+  reasoningTextFromSource,
+  OPENROUTER_IGNORED_PROVIDERS,
   OPENROUTER_MAX_COMPLETION_USD_PER_MILLION,
   openRouterErrorMessage,
   openRouterProviderPreferences,
@@ -13,6 +18,7 @@ import {
   STORY_REASONING_HIDDEN,
   STORY_REASONING_VISIBLE,
   storyCompletionBudget,
+  toOpenRouterProviderSlug,
 } from '../src/services/openrouter.service';
 import { DEFAULT_OPENROUTER_MODEL } from '../src/config/ai-models.config';
 
@@ -20,17 +26,21 @@ test('routes OpenRouter to the fastest provider at or below $0.30/M output', () 
   const previousSort = process.env.OPENROUTER_PROVIDER_SORT;
   const previousPrice = process.env.OPENROUTER_MAX_OUTPUT_PRICE;
   const previousOrder = process.env.OPENROUTER_PROVIDER_ORDER;
+  const previousIgnore = process.env.OPENROUTER_PROVIDER_IGNORE;
   delete process.env.OPENROUTER_PROVIDER_SORT;
   delete process.env.OPENROUTER_MAX_OUTPUT_PRICE;
   delete process.env.OPENROUTER_PROVIDER_ORDER;
+  delete process.env.OPENROUTER_PROVIDER_IGNORE;
   try {
     assert.equal(OPENROUTER_MAX_COMPLETION_USD_PER_MILLION, 0.30);
     assert.deepEqual(openRouterProviderPreferences(), {
-      order: ['DeepSeek'],
+      order: ['DeepSeek', 'Novita', 'DeepInfra', 'SiliconFlow'],
       allow_fallbacks: true,
+      ignore: ['sail-research'],
       sort: 'throughput',
       max_price: { completion: 0.30 },
     });
+    assert.deepEqual(OPENROUTER_IGNORED_PROVIDERS, ['sail-research']);
   } finally {
     if (previousSort === undefined) delete process.env.OPENROUTER_PROVIDER_SORT;
     else process.env.OPENROUTER_PROVIDER_SORT = previousSort;
@@ -38,6 +48,8 @@ test('routes OpenRouter to the fastest provider at or below $0.30/M output', () 
     else process.env.OPENROUTER_MAX_OUTPUT_PRICE = previousPrice;
     if (previousOrder === undefined) delete process.env.OPENROUTER_PROVIDER_ORDER;
     else process.env.OPENROUTER_PROVIDER_ORDER = previousOrder;
+    if (previousIgnore === undefined) delete process.env.OPENROUTER_PROVIDER_IGNORE;
+    else process.env.OPENROUTER_PROVIDER_IGNORE = previousIgnore;
   }
 });
 
@@ -47,12 +59,11 @@ test('allows env overrides for OpenRouter sort and output price cap', () => {
   process.env.OPENROUTER_PROVIDER_SORT = 'latency';
   process.env.OPENROUTER_MAX_OUTPUT_PRICE = '0.14';
   try {
-    assert.deepEqual(openRouterProviderPreferences(), {
-      order: ['DeepSeek'],
-      allow_fallbacks: true,
-      sort: 'latency',
-      max_price: { completion: 0.14 },
-    });
+    const prefs = openRouterProviderPreferences();
+    assert.equal(prefs.sort, 'latency');
+    assert.equal(prefs.max_price.completion, 0.14);
+    assert.deepEqual(prefs.ignore, ['sail-research']);
+    assert.deepEqual(prefs.order, ['DeepSeek', 'Novita', 'DeepInfra', 'SiliconFlow']);
   } finally {
     if (previousSort === undefined) delete process.env.OPENROUTER_PROVIDER_SORT;
     else process.env.OPENROUTER_PROVIDER_SORT = previousSort;
@@ -140,6 +151,33 @@ test('accumulates streamed reasoning deltas before the JSON answer', () => {
   assert.equal(state.content, '{"title":"X"}');
 });
 
+test('does not stutter when the provider repeats reasoning in details or snapshots', () => {
+  assert.equal(
+    reasoningTextFromSource({
+      reasoning: 'Title first.',
+      reasoning_details: [{ type: 'reasoning.text', text: 'Title first.' }],
+    }),
+    'Title first.',
+  );
+  assert.equal(
+    reasoningTextFromSource({
+      reasoning: 'Keep this.',
+      reasoning_details: [{ type: 'reasoning.encrypted', data: 'gAAAAA' }],
+    }),
+    'Keep this.',
+  );
+  assert.equal(appendStreamText('Hello', 'Hello world'), 'Hello world');
+  assert.equal(appendStreamText('Hello world', ' world'), 'Hello world');
+  const state = createOpenRouterStreamAccumulation();
+  ingestOpenRouterStreamChunk(state, {
+    choices: [{ delta: { reasoning: 'Hello' } }],
+  });
+  ingestOpenRouterStreamChunk(state, {
+    choices: [{ delta: { reasoning: 'Hello world' } }],
+  });
+  assert.equal(state.reasoning, 'Hello world');
+});
+
 test('surfaces the OpenRouter 400 body instead of Axios status text', () => {
   const message = openRouterErrorMessage({
     message: 'Request failed with status code 400',
@@ -155,4 +193,16 @@ test('surfaces the OpenRouter 400 body instead of Axios status text', () => {
   });
   assert.match(message, /OpenRouter 400/);
   assert.match(message, /reasoning\.effort/);
+});
+
+test('maps Sail Research upstream JSON failures to the ignore slug', () => {
+  const message =
+    'Upstream error from Sail Research: response_format violated: model emitted invalid JSON: EOF while parsing a value at line 1 column 0';
+  assert.equal(toOpenRouterProviderSlug('Sail Research'), 'sail-research');
+  assert.equal(extractFailedOpenRouterProvider(message), 'sail-research');
+  assert.equal(isOpenRouterJsonFormatError(new Error(message)), true);
+  assert.deepEqual(
+    openRouterProviderPreferences(['Sail Research']).ignore,
+    ['sail-research'],
+  );
 });

@@ -74,23 +74,64 @@ export type OpenRouterTextMeta = {
   model: string;
 };
 
-const reasoningPiecesFrom = (source: any): string[] => {
-  if (!source || typeof source !== 'object') return [];
-  const pieces: string[] = [];
-  if (typeof source.reasoning === 'string') pieces.push(source.reasoning);
-  if (typeof source.reasoning_content === 'string') pieces.push(source.reasoning_content);
-  const details = source.reasoning_details;
-  if (Array.isArray(details)) {
-    for (const item of details) {
-      if (typeof item?.text === 'string') pieces.push(item.text);
-      else if (typeof item?.content === 'string') pieces.push(item.content);
+const isEncryptedReasoningDetail = (item: any): boolean => {
+  const type = String(item?.type || '').toLowerCase();
+  return type.includes('encrypted') || type.includes('redacted');
+};
+
+const visibleReasoningDetailText = (item: any): string => {
+  if (!item || typeof item !== 'object' || isEncryptedReasoningDetail(item)) return '';
+  const type = String(item.type || '').toLowerCase();
+  if (
+    type.startsWith('reasoning.') &&
+    type !== 'reasoning.text' &&
+    type !== 'reasoning.summary'
+  ) {
+    return '';
+  }
+  if (typeof item.text === 'string' && item.text) return item.text;
+  if (typeof item.summary === 'string' && item.summary) return item.summary;
+  if (typeof item.content === 'string' && item.content) return item.content;
+  return '';
+};
+
+/** Visible thought from one OpenRouter delta/message, without duplicating details. */
+export const reasoningTextFromSource = (source: any): string => {
+  if (!source || typeof source !== 'object') return '';
+  const direct = [source.reasoning, source.reasoning_content]
+    .filter((value) => typeof value === 'string' && value)
+    .join('');
+  const details = Array.isArray(source.reasoning_details)
+    ? source.reasoning_details.map(visibleReasoningDetailText).filter(Boolean).join('')
+    : '';
+  if (direct && details) {
+    if (details === direct || details.startsWith(direct) || direct.startsWith(details)) {
+      return details.length >= direct.length ? details : direct;
+    }
+    return direct;
+  }
+  return direct || details;
+};
+
+/** Merge a snapshot or a token delta without stuttering "HelloHello world". */
+export const appendStreamText = (previous: string, incoming: string): string => {
+  if (!incoming) return previous || '';
+  if (!previous) return incoming;
+  if (incoming === previous) return previous;
+  if (incoming.startsWith(previous)) return incoming;
+  if (previous.startsWith(incoming)) return previous;
+  if (previous.endsWith(incoming)) return previous;
+  const max = Math.min(previous.length, incoming.length, 256);
+  for (let size = max; size > 0; size -= 1) {
+    if (previous.slice(-size) === incoming.slice(0, size)) {
+      return previous + incoming.slice(size);
     }
   }
-  return pieces.filter((piece) => piece.trim());
+  return previous + incoming;
 };
 
 const extractOpenRouterReasoning = (message: any): string =>
-  reasoningPiecesFrom(message).join('\n\n').trim();
+  reasoningTextFromSource(message).trim();
 
 export type OpenRouterStreamAccumulation = {
   content: string;
@@ -139,20 +180,20 @@ export const ingestOpenRouterStreamChunk = (
     state.finishReason = String(choice.finish_reason);
   }
   const before = state.reasoning;
-  const delta = choice.delta;
-  const deltaReasoning = reasoningPiecesFrom(delta).join('');
+  const deltaReasoning = reasoningTextFromSource(choice.delta);
   if (deltaReasoning) {
-    state.reasoning += deltaReasoning;
+    state.reasoning = appendStreamText(state.reasoning, deltaReasoning);
   }
-  const messageReasoning = extractOpenRouterReasoning(choice.message);
-  if (messageReasoning && messageReasoning.length >= state.reasoning.length) {
-    state.reasoning = messageReasoning;
+  const messageReasoning = reasoningTextFromSource(choice.message);
+  if (messageReasoning) {
+    state.reasoning = appendStreamText(state.reasoning, messageReasoning);
   }
+  const delta = choice.delta;
   const deltaContent = typeof delta?.content === 'string' ? delta.content : '';
   if (deltaContent) {
-    state.content += deltaContent;
+    state.content = appendStreamText(state.content, deltaContent);
   } else if (!delta && typeof choice.message?.content === 'string') {
-    state.content = choice.message.content;
+    state.content = appendStreamText(state.content, choice.message.content);
   }
   return state.reasoning !== before;
 };
@@ -233,11 +274,23 @@ export type OpenRouterProviderSort = 'throughput' | 'latency' | 'price';
 export type OpenRouterProviderPreferences = {
   order: string[];
   allow_fallbacks: boolean;
+  ignore: string[];
   sort: OpenRouterProviderSort;
   max_price: {
     completion: number;
   };
 };
+
+/** Cheap hosts that keep JSON intact. Official DeepSeek is above the $0.30 cap. */
+export const OPENROUTER_DEFAULT_PROVIDER_ORDER = [
+  'DeepSeek',
+  'Novita',
+  'DeepInfra',
+  'SiliconFlow',
+];
+
+/** Sail Research accepts json_object then emits EOF / end_of_sentence. */
+export const OPENROUTER_IGNORED_PROVIDERS = ['sail-research'];
 
 const parsePositiveNumber = (value: string | undefined, fallback: number): number => {
   const parsed = Number(value);
@@ -252,20 +305,67 @@ const parseProviderSort = (value: string | undefined): OpenRouterProviderSort =>
   return 'throughput';
 };
 
-const parseProviderOrder = (value: string | undefined): string[] => {
-  const fromEnv = String(value || '')
+const parseCsvList = (value: string | undefined): string[] =>
+  String(value || '')
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
-  return fromEnv.length > 0 ? fromEnv : ['DeepSeek'];
+
+export const toOpenRouterProviderSlug = (value: string): string =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+const uniqueProviderNames = (items: string[]): string[] => {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of items) {
+    const raw = String(item || '').trim();
+    if (!raw) continue;
+    const key = toOpenRouterProviderSlug(raw);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(raw.includes(' ') ? key : raw);
+  }
+  return result;
+};
+
+const parseProviderOrder = (value: string | undefined): string[] => {
+  const fromEnv = parseCsvList(value);
+  return fromEnv.length > 0 ? fromEnv : [...OPENROUTER_DEFAULT_PROVIDER_ORDER];
+};
+
+const parseProviderIgnore = (value: string | undefined, extra: string[] = []): string[] =>
+  uniqueProviderNames([...OPENROUTER_IGNORED_PROVIDERS, ...parseCsvList(value), ...extra]);
+
+export const extractFailedOpenRouterProvider = (message: string): string | null => {
+  const match = String(message || '').match(/Upstream error from ([^:]+):/i);
+  const slug = toOpenRouterProviderSlug(match?.[1] || '');
+  return slug || null;
+};
+
+export const isOpenRouterJsonFormatError = (error: unknown): boolean => {
+  const message = openRouterErrorMessage(error).toLowerCase();
+  return (
+    message.includes('response_format violated') ||
+    message.includes('emitted invalid json') ||
+    message.includes('eof while parsing') ||
+    /upstream error from /.test(message)
+  );
 };
 
 /**
- * Prefere DeepSeek (rápido). AtlasCloud/Wafer caros ficam de fora pelo teto de US$ 0,30/M.
+ * Prefere DeepSeek/Novita/DeepInfra. Sail Research fica de fora: aceita json_object
+ * e devolve EOF. AtlasCloud/Wafer caros ficam de fora pelo teto de US$ 0,30/M.
  */
-export const openRouterProviderPreferences = (): OpenRouterProviderPreferences => ({
+export const openRouterProviderPreferences = (
+  extraIgnore: string[] = [],
+): OpenRouterProviderPreferences => ({
   order: parseProviderOrder(process.env.OPENROUTER_PROVIDER_ORDER),
   allow_fallbacks: process.env.OPENROUTER_ALLOW_FALLBACKS === '0' ? false : true,
+  ignore: parseProviderIgnore(process.env.OPENROUTER_PROVIDER_IGNORE, extraIgnore),
   sort: parseProviderSort(process.env.OPENROUTER_PROVIDER_SORT),
   max_price: {
     completion: parsePositiveNumber(
@@ -542,6 +642,8 @@ export const generateTextWithMeta = async (
     reasoning?: OpenRouterReasoning;
     response_format?: { type: 'json_object' | 'text' };
     lengthRetry?: boolean;
+    formatRetry?: boolean;
+    ignoreProviders?: string[];
     stream?: boolean;
     onReasoning?: (thought: string) => void;
   } = {},
@@ -558,7 +660,7 @@ export const generateTextWithMeta = async (
     messages = [{ role: 'user', content: prompt }];
   }
 
-  const provider = openRouterProviderPreferences();
+  const provider = openRouterProviderPreferences(options.ignoreProviders);
   const useStream = options.stream !== false;
   const request: Record<string, unknown> = {
     model: toDefaultProviderModel(options.model || AVAILABLE_MODELS.DEEPSEEK_V4_FLASH),
@@ -580,7 +682,7 @@ export const generateTextWithMeta = async (
   }
 
   console.log(
-    `Enviando texto para OpenRouter model=${request.model} streaming=${useStream} max_tokens=${options.max_tokens || 'default'} provider_order=${provider.order.join(',')} sort=${provider.sort} max_output=$${provider.max_price.completion}/M`,
+    `Enviando texto para OpenRouter model=${request.model} streaming=${useStream} max_tokens=${options.max_tokens || 'default'} provider_order=${provider.order.join(',')} ignore=${provider.ignore.join(',')} sort=${provider.sort} max_output=$${provider.max_price.completion}/M`,
   );
 
   const config = {
@@ -694,19 +796,39 @@ export const generateTextWithMeta = async (
       console.log('Requisição cancelada pelo usuário');
       throw new Error('Requisição cancelada pelo usuário');
     }
+    const detail = openRouterErrorMessage(error);
     const status = Number(error?.response?.status || 0);
     if (useStream && status === 400) {
-      console.warn(
-        `OpenRouter stream 400; falling back to non-stream: ${openRouterErrorMessage(error)}`,
-      );
+      console.warn(`OpenRouter stream 400; falling back to non-stream: ${detail}`);
       return generateTextWithMeta(
         prompt,
         { ...options, stream: false },
         abortController,
       );
     }
+    if (!options.formatRetry && isOpenRouterJsonFormatError(error)) {
+      const failed = extractFailedOpenRouterProvider(detail);
+      const ignoreProviders = uniqueProviderNames([
+        ...(options.ignoreProviders || []),
+        failed || '',
+        ...OPENROUTER_IGNORED_PROVIDERS,
+      ]);
+      console.warn(
+        `OpenRouter JSON vazio via ${failed || 'unknown'}; retry sem json_object ignore=${ignoreProviders.join(',')}: ${detail}`,
+      );
+      return generateTextWithMeta(
+        prompt,
+        {
+          ...options,
+          response_format: undefined,
+          formatRetry: true,
+          ignoreProviders,
+        },
+        abortController,
+      );
+    }
     logDetailedError(error);
-    throw new Error(openRouterErrorMessage(error));
+    throw new Error(detail);
   }
 };
 
