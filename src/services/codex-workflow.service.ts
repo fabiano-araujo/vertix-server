@@ -470,10 +470,10 @@ USER_INSTRUCTION is a vague vibe, not a catalog form. Examples: "dorama na favel
 
 Title: 2-6 words in the project language. Do not use the raw idea, genre, trope, or setting as the title. Ban arrival/return titles and catalog titles: "O Retorno", "Doces Segredos", "Laços", "Segredos", "Amor Proibido".
 Premise: the lead ALREADY lives inside a ticking claim, power imbalance or forbidden proximity. The opposing force already lives there too. Ban loglines of arrival/return/new-life ("após anos afastado", "volta para casa", "retorna à favela", "o pai voltou", "voltou para dominar"). Not a misunderstanding one talk would dissolve.
-Do not make the raw idea the engine. If the brief is a place, invent a specific job, claim or secret INSIDE it that is not a postcard of that place.
-Ban ice CEO, demolition-saves-community, Cinderella intern, secret billionaire, secret-paternity/hidden-father, bakery-plus-drug-lord, two rival gang bosses as the whole plot.
+Do not make the raw idea the engine. If the brief is a place, invent a specific job, claim or secret INSIDE it that is not a postcard of that place. The costly want is personal (a job that can be taken tonight, a debt, custody, a name on a paper that ruins HER/HIM) — not civic heroism.
+Ban ice CEO, demolition-saves-community, save-the-school, save-the-neighborhood, Cinderella intern, secret billionaire, secret-paternity/hidden-father, bakery-plus-drug-lord, two rival gang bosses as the whole plot.
 One opposing_force only. A love interest is either the opposing_force or an ally — not a second antagonist.
-speaking_cast names: match the vibe's geography (a favela brief may be Brazilian). Vary origins only when the vibe is abstract. Ban Costa, Silva, Menezes, Ventura, Tavares, Oliveira, and the stock pair Caio/Marina.
+speaking_cast names: match the vibe's geography (a favela brief may be Brazilian). Vary origins only when the vibe is abstract. Ban Costa, Silva, Menezes, Ventura, Tavares, Oliveira, Santos, Souza, Lima, Nogueira, and the stock pair Caio/Marina.
 world_visual_lock: one photographed-world sentence invented from the vibe. Every later place copies this DNA. Do not copy a generic preset.
 speaking_cast: 4-5 people as compact roles only (no appearance, no looks). 2-4 speakers plus supporting.
 Episodes later run 90-120 seconds; do not fix a duration here.
