@@ -655,13 +655,16 @@ const generateJson = async (
     if (!debug) return;
     if (patch.startedAt) debugStartedAt = patch.startedAt;
     const progress = patch.status === 'done' ? KEEP_PROGRESS : debug.progress;
+    const sentPrompt = typeof patch.prompt === 'string' && patch.prompt.trim()
+      ? patch.prompt
+      : formatPromptForDebug(prompt);
     await debug.onProgress(progress, debug.stepLabel, {
       ...(debug.extra || {}),
       debug: {
         step: debug.step,
         stepLabel: debug.stepLabel,
         model,
-        prompt: formatPromptForDebug(prompt),
+        prompt: sentPrompt,
         status: patch.status || 'waiting',
         startedAt: debugStartedAt,
         ...patch,
@@ -673,7 +676,11 @@ const generateJson = async (
     nextPrompt: string | Array<{ role: string; content: string }>,
   ): Promise<JsonMap> => {
     throwIfAborted(abortController);
-    await publishDebug({ status: 'waiting', startedAt: new Date().toISOString() });
+    await publishDebug({
+      status: 'waiting',
+      startedAt: new Date().toISOString(),
+      prompt: formatPromptForDebug(nextPrompt),
+    });
     const meta = await generateTextWithMeta(
       nextPrompt,
       {
@@ -920,10 +927,10 @@ const generateOutlineInStages = async (
       true,
     );
   } else {
-    await onProgress(8, 'Inventando título e contrato da série...');
+    const biblePrompt = buildPrompt(request);
     const bibleResult = await generateJson(
       model,
-      buildPrompt(request),
+      biblePrompt,
       8192,
       abortController,
       jsonDebugContext(
@@ -960,7 +967,6 @@ const generateOutlineInStages = async (
     ].filter(Boolean).join('\n\n');
     await publish(12, title ? `Título: ${title}` : 'Contrato da série pronto', result, conversation, true);
 
-    await publish(16, 'Mapeando a temporada, o paywall e as revelações reservadas...', result, conversation, true);
     const architecturePrompt = `${commonContract(request)}\n${architectureContract(target)}\nRETENTION_PROFILE_JSON:\n${JSON.stringify(profile)}\nPLANNED_BLOCKS_JSON:\n${JSON.stringify(plannedBlocks)}\nSERIES_CONTRACT_JSON:\n${JSON.stringify({
         title,
         logline: patch.logline,
@@ -1032,13 +1038,6 @@ const generateOutlineInStages = async (
   for (let index = 0; index < chunks.length; index += 1) {
     const chunk = chunks[index];
     const pct = 22 + Math.round(((index + 1) / Math.max(chunks.length, 1)) * 12);
-    await publish(
-      pct,
-      `Espinha dos episódios ${chunk.start}-${chunk.end} (lote ${batch.fromEpisode}-${batch.throughEpisode} de ${target})...`,
-      result,
-      `${conversation}\n\nEspinha ${chunk.start}-${chunk.end}...`,
-      true,
-    );
     const spinePrompt = `${commonContract(request)}\n${spineChunkContract(chunk.start, chunk.end, target)}\nOUTLINE_BATCH_JSON:\n${JSON.stringify(batch)}\nRETENTION_PROFILE_JSON:\n${JSON.stringify(profile)}\nSEASON_BLOCKS_JSON:\n${JSON.stringify(filledBlocks)}\nRESERVED_REVEALS_JSON:\n${JSON.stringify(reservedReveals)}\nSERIES_CONTRACT_JSON:\n${JSON.stringify(compactStoryContext(patch))}\nPREVIOUS_SPINE_JSON:\n${JSON.stringify(compactSpineForPrompt(spine))}\nSERIES_TITLE: ${title}`;
     const spineResult = await generateJson(
       model,
@@ -1087,13 +1086,6 @@ const generateOutlineInStages = async (
     const thisSlot = spine.find((item) => item.episode === number) || null;
     const idx = number - batch.fromEpisode + 1;
     const pct = 34 + Math.round((idx / cardCount) * 64);
-    await publish(
-      pct,
-      `Gerando EP${number}/${target} (lote ${batch.fromEpisode}-${batch.throughEpisode})...`,
-      result,
-      `${conversation}\n\nEP${number} · escrevendo...`,
-      true,
-    );
     const episodePrompt = `${commonContract({ ...request, episodeNumber: number })}\n${oneEpisodeContract(number, target, duration)}\nOUTLINE_BATCH_JSON:\n${JSON.stringify(batch)}\nTHIS_SPINE_SLOT:\n${JSON.stringify(thisSlot)}\nNEXT_SPINE_SLOT:\n${JSON.stringify(spine.find((item) => item.episode === number + 1) || null)}\nLOCKED_REVEALS:\n${JSON.stringify(lockedRevealsForEpisode(reservedReveals, number))}\nBEAT_ENGINE_JSON:\n${JSON.stringify(beatEngineForDuration(duration))}\nRECENT_CARDS_JSON:\n${JSON.stringify(recentCardsForPrompt(patch.episode_cards as JsonMap[], number))}\nPREVIOUS_EPISODE_JSON:\n${JSON.stringify(previous || null)}\nPREVIOUS_HOOK_JSON:\n${JSON.stringify(previousHook || null)}\nSERIES_TITLE: ${title}\nPROJECT_DATA_JSON:\n${JSON.stringify(compactSeriesForEpisodeOutline(title, target, patch, spine, number))}`;
     const episodeResult = await generateJson(
       model,
@@ -1289,7 +1281,6 @@ Shot 1 = this episode cold_open / opening_pickup. Same plot, cast, and locations
     });
   };
 
-  await publish(12, `Planejando cenas do EP${episodeNumber} · ${title}...`, true);
   const castLooksCatalog = compactCastLooksCatalog(bible.characters);
   const wardrobeLock = `WARDROBE LOCK: Set scene.cast_looks to {"character-id":"look-id"} from CAST_LOOKS_CATALOG_JSON. Use default (or omit) for the standard appearance. Use an extra look only when this scene's location/story requires a different costume. Visible clothes in action text must match that look's wardrobe.`;
   const planPrompt = `${commonContract(request)}\n${lockRule}\n${wardrobeLock}\nPlan 2 to 4 scenes for this episode only. Scene duration_seconds must sum exactly to ${duration}. Use only locked characters and locations.\nresult shape: {"scene_plan":[{"scene":1,"title":"...","location":"...","location_id":"...","time_of_day":"DAY or NIGHT","interior_exterior":"INT or EXT","dramatic_beat":"...","cast":["..."],"cast_ids":["..."],"cast_looks":{"character-id":"default"},"duration_seconds":30,"story":"..."}]}\nCAST_LOOKS_CATALOG_JSON:\n${JSON.stringify(castLooksCatalog)}\nLOCKED_STORY_JSON:\n${JSON.stringify({
@@ -1355,7 +1346,6 @@ Shot 1 = this episode cold_open / opening_pickup. Same plot, cast, and locations
     const plannedScene = planned[index];
     const pct = 20 + Math.round(((index + 1) / planned.length) * 70);
     conversation = `${conversation}\n\nCena ${plannedScene.scene} · ${plannedScene.title || ''} — escrevendo...`;
-    await publish(pct, `Escrevendo a cena ${plannedScene.scene}/${planned.length}...`, true);
     const scenePrompt = `${commonContract(request)}\n${episodeSceneContract}\n${lockRule}\n${wardrobeLock}\nWrite ONLY scene ${plannedScene.scene} of ${planned.length} for episode ${episodeNumber}. Scene duration must be exactly ${plannedScene.duration_seconds}s. Shot numbers must start at ${shotNumber} and be contiguous. ${shotFixed ? `Each shot must last exactly ${maxShot}s.` : `Each shot 1-${maxShot}s.`} Row durations must sum to the shot. Return result shape: {"scene":{"episode":${episodeNumber},"scene":${plannedScene.scene},"title":${JSON.stringify(plannedScene.title || '')},"location_id":${JSON.stringify(plannedScene.location_id || '')},"location":${JSON.stringify(plannedScene.location || '')},"time_of_day":${JSON.stringify(plannedScene.time_of_day || 'DAY')},"interior_exterior":${JSON.stringify(plannedScene.interior_exterior || 'INT')},"dramatic_beat":${JSON.stringify(plannedScene.dramatic_beat || '')},"cast_ids":${JSON.stringify(plannedScene.cast_ids || [])},"cast":${JSON.stringify(plannedScene.cast || [])},"cast_looks":${JSON.stringify(plannedScene.cast_looks || {})},"story":${JSON.stringify(plannedScene.story || '')},"status":"DRAFT_REVIEW_REQUIRED","shots":[{"number":${shotNumber},"title":"...","duration_seconds":8,"status":"DRAFT_REVIEW_REQUIRED","final_state":"...","rows":[{"type":"action","text":"...","duration_seconds":2}]}]}}\nPREVIOUS_SCENES_JSON:\n${JSON.stringify(compactPreviousScenes(scriptBase.scenes as JsonMap[]))}\nSCENE_PLAN_JSON:\n${JSON.stringify(plannedScene)}\nCAST_LOOKS_CATALOG_JSON:\n${JSON.stringify(castLooksCatalog)}\nLOCKED_STORY_JSON:\n${JSON.stringify({ ...compact, lockedEpisode: locked })}`;
     const sceneResult = await generateJson(
       model,
@@ -1466,14 +1456,6 @@ const generateStorySheets = async (
   abortController?: AbortController,
 ): Promise<JsonMap> => {
   const message = storySheetsProgressMessage(request.instruction);
-  await onProgress(12, message, {
-    action: request.action,
-    summary: message,
-    conversation: message,
-    partial: true,
-    provider: 'openrouter',
-    model,
-  });
   const raw = await generateJson(
     model,
     buildPrompt(request),
