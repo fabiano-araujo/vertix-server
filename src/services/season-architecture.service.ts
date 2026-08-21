@@ -100,10 +100,23 @@ export const beatEngineForDuration = (seconds: number): BeatEngine => {
     spike: `${frictionEnd}-${buttonStart}s`,
     button: `${buttonStart}-${duration}s`,
     freeze_frame_check: '3s',
-    peak_cut_rule:
-      'Cut 2 seconds earlier than feels safe, on the unanswered question, never on explanation or reaction tail.',
+    peak_cut_rule: 'Cut 2s early on the unanswered question, never on explanation.',
   };
 };
+
+/**
+ * Unique writing kernel for OpenRouter/DeepSeek. Inject once per outline/script call.
+ * Do not paste vertical-drama-writer SKILL.md here.
+ */
+export const STORY_KERNEL = [
+  'STORY KERNEL (system-owned; do not restate or waive):',
+  '3s freeze-frame = irreversible act in progress. Ban arrival/return/new-life openings and titles like "O Retorno". 15s = who/want/obstacle/risk.',
+  'One exclusive job per EP; adjacent pressure_type must differ. Pay the previous hook, then raise cost. Cut on the unanswered question.',
+  'Plant viewer_dramatic_irony when it names an episode. Funnel proves; central question waits for the ceiling. Paywall asks; +1-2 pays and opens a bigger problem. Honor LOCKED_REVEALS and must_not.',
+].join('\n');
+
+/** @deprecated Use STORY_KERNEL. Kept so older imports keep compiling. */
+export const PHONE_RETENTION_RULES = STORY_KERNEL;
 
 export const buildRetentionProfile = (input: {
   episodeCount: number;

@@ -21,9 +21,10 @@ test('adult character uses the complete hybrid reference contract by default', (
   const result = compileReferenceImagePrompt({
     label: 'Isabela Costa',
     category: 'CHARACTER_MASTER',
-    description: 'Mulher de 30 anos, cabelos castanhos longos e olhos verdes.',
+    description: 'Mulher de 30 anos, cabelos castanhos longos, olhos verdes, terno preto sóbrio e sapatos baixos.',
+    prompt: 'Use uma jaqueta amarela que não pertence à descrição aprovada.',
     metadata: {
-      outfit_lock: 'terno preto sóbrio e sapatos baixos',
+      outfit_lock: 'vestido vermelho que não pertence à descrição aprovada',
     },
   });
 
@@ -37,6 +38,8 @@ test('adult character uses the complete hybrid reference contract by default', (
   assert.match(result.prompt, /gaps around 6-8%/i);
   assert.match(result.prompt, /opening around 12-15%/i);
   assert.match(result.prompt, /terno preto sóbrio/);
+  assert.doesNotMatch(result.prompt, /jaqueta amarela/);
+  assert.doesNotMatch(result.prompt, /vestido vermelho/);
   assert.match(result.prompt, /Isabela Costa/);
   assert.doesNotMatch(result.prompt, /#F7F6F2/);
   assert.doesNotMatch(result.prompt, /translate\s+each cutout outward/i);
@@ -55,6 +58,7 @@ test('the hybrid sheet carries only the approved facts and the layout contract',
   assert.equal(result.promptMetadata, undefined);
   assert.match(result.prompt, /APPROVED CHARACTER FACTS/);
   assert.match(result.prompt, /mecha branca/);
+  assert.doesNotMatch(result.prompt, /Protagonista/);
   assert.doesNotMatch(result.prompt, /FACE IDENTITY LOCK/);
   assert.doesNotMatch(result.prompt, /ORIGIN LOCK/);
   assert.doesNotMatch(result.prompt, /ATTRACTIVENESS REGISTER/);
@@ -68,18 +72,37 @@ test('the hybrid sheet carries only the approved facts and the layout contract',
   assert.ok(preamble < 600, `preamble too long: ${preamble} chars`);
 });
 
-test('explicit child character uses the standard photoreal reference mode', () => {
+test('backstory and generated metadata never override the description-driven hybrid sheet', () => {
+  const result = compileReferenceImagePrompt({
+    label: 'Marina Avelar',
+    category: 'CHARACTER_MASTER',
+    description: 'Mulher afro-brasileira de 30 anos, cabelos escuros cacheados e jaqueta mostarda.',
+    metadata: {
+      wound: 'Abandono do pai quando criança',
+      visualReferenceMode: 'standard_ultra_photoreal',
+    },
+  });
+
+  assert.equal(result.visualReferenceMode, 'hybrid_face_compat');
+  assert.match(result.prompt, /DRAWN HEADS ON FRONT AND SIDE BODIES/);
+  assert.match(result.prompt, /LARGE BROKEN PHOTOGRAPHIC PORTRAIT/);
+  assert.match(result.prompt, /jaqueta mostarda/);
+  assert.doesNotMatch(result.prompt, /Abandono do pai/);
+  assert.doesNotMatch(result.prompt, /original fictional child character/i);
+});
+
+test('age words stay in the description and never classify the image layout', () => {
   const result = compileReferenceImagePrompt({
     label: 'Lucas Mendes',
     category: 'CHARACTER_MASTER',
     description: 'Criança de 5 anos com roupas infantis coloridas.',
   });
 
-  assert.equal(result.visualReferenceMode, 'standard_ultra_photoreal');
-  assert.match(result.prompt, /original fictional child character/i);
-  assert.match(result.prompt, /strictly age-appropriate/i);
-  assert.doesNotMatch(result.prompt, /BROKEN PHOTOGRAPHIC PORTRAIT/);
-  assert.doesNotMatch(result.prompt, /shattered/i);
+  assert.equal(result.visualReferenceMode, 'hybrid_face_compat');
+  assert.match(result.prompt, /Criança de 5 anos/);
+  assert.match(result.prompt, /DRAWN HEADS ON FRONT AND SIDE BODIES/);
+  assert.match(result.prompt, /LARGE BROKEN PHOTOGRAPHIC PORTRAIT/);
+  assert.doesNotMatch(result.prompt, /original fictional child character/i);
 });
 
 test('location prompt is a photoreal location-scout master with saved anchors', () => {
@@ -591,6 +614,7 @@ test('a compiled standard character prompt remains standard when reused', () => 
     label: 'Lucas Mendes',
     category: 'CHARACTER_MASTER',
     description: 'Criança de 5 anos.',
+    metadata: { visual_reference_mode: 'standard' },
   });
   const reused = compileReferenceImagePrompt({
     label: 'Lucas Mendes',
@@ -756,4 +780,3 @@ test('wardrobe look source images resolve from the completed identity sibling', 
   assert.equal(resolved[0].referenceId, 'character-marta');
   assert.equal(resolved[0].index, 1);
 });
-

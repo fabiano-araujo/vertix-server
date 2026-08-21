@@ -273,28 +273,7 @@ const lookSheetInput = (
   };
 };
 
-const compileSimpleOutfitLookPrompt = (input: ReferenceImagePromptInput): string => {
-  const name = lookCharacterName(input);
-  const identity = uniqueFacts([
-    ...selectedMetadataFacts(input.metadata || {}, [
-      ['appearance', 'visual_lock', 'visualLock'],
-      ['origin', 'country', 'nationality', 'ancestry', 'ethnicity', 'pais', 'origem'],
-      ['age', 'age_range', 'ageRange'],
-    ]),
-  ]).join(' ')
-    || 'Preserve the approved face, age, body and ethnicity from image 1.';
-  return `${outfitLookInstruction(input)}
-
-IMAGE 1 is the canonical identity sheet of ${name}. Keep the same face, age, height, ethnicity, bone structure, body and hair identity. Change only clothes, shoes, accessories and any hair styling or handheld prop named in the outfit.
-
-IDENTITY FACTS TO PRESERVE: ${identity}
-
-Photorealistic live-action continuity photograph, full body visible, clean off-white studio, 3:2. Exactly one person. No new identity. No extra people. No text, logo or watermark.`;
-};
-
 const compileOutfitLookPrompt = (input: ReferenceImagePromptInput): string => {
-  if (isExplicitMinor(input)) return compileSimpleOutfitLookPrompt(input);
-
   const name = lookCharacterName(input);
   const wardrobe = lookWardrobe(input);
   const sheet = compileHybridCharacterPrompt(lookSheetInput(input));
@@ -1743,43 +1722,17 @@ floating-head montage, misspelled text or extra readable words.`,
   };
 };
 
-const explicitAge = (input: ReferenceImagePromptInput): number | undefined => {
-  const metadata = input.metadata || {};
-  const candidates = [
-    metadataValue(metadata, ['age', 'age_range', 'ageRange']),
-    input.description,
-    input.prompt,
-  ];
-  for (const candidate of candidates) {
-    if (typeof candidate === 'number' && Number.isFinite(candidate)) {
-      return candidate;
-    }
-    const text = cleanText(candidate, 4_000);
-    const match = text.match(/\b(\d{1,2})\s*(?:anos?|years?(?:\s+old)?)\b/i);
-    if (match) return Number(match[1]);
-  }
-  return undefined;
-};
-
-const isExplicitMinor = (input: ReferenceImagePromptInput): boolean => {
-  const age = explicitAge(input);
-  if (age !== undefined) return age < 18;
-  const facts = `${input.description || ''} ${input.prompt || ''} ${readableValue(input.metadata || {})}`
-    .toLocaleLowerCase('pt-BR');
-  return /\b(crian[cç]a|menino|menina|beb[eê]|child|kid|toddler|infantil)\b/i
-    .test(facts);
-};
-
 const requestedCharacterMode = (
   input: ReferenceImagePromptInput,
 ): 'hybrid_face_compat' | 'standard_ultra_photoreal' => {
-  if (isExplicitMinor(input)) return 'standard_ultra_photoreal';
-  const rawMode = readableValue(metadataValue(input.metadata || {}, [
-    'visual_reference_mode',
-    'visualReferenceMode',
-    'reference_mode',
-    'referenceMode',
-  ])).toLowerCase();
+  // Only a deliberate request field may override the site default. Generated
+  // metadata such as visualReferenceMode is output state from an older job and
+  // must never classify the character or silently change the next sheet.
+  const metadata = input.metadata || {};
+  const rawMode = cleanText(
+    metadata.visual_reference_mode ?? metadata.reference_mode,
+    80,
+  ).toLowerCase();
   if (rawMode.includes('standard') || rawMode.includes('normal')) {
     return 'standard_ultra_photoreal';
   }
@@ -1790,9 +1743,11 @@ const compileHybridCharacterPrompt = (
   input: ReferenceImagePromptInput,
 ): string => {
   const name = cleanText(input.label, 180);
-  const facts = characterFacts(input) || 'Use only the approved identity and wardrobe facts supplied for this character.';
+  const facts = cleanText(input.description, 12_000)
+    || cleanText(input.prompt, 12_000)
+    || 'Use only the approved visual description supplied for this character.';
   return `Create one clean horizontal 3:2 character identity sheet on an off-white
-background for the original fictional adult character ${name}. Put the exact name
+background for the original fictional character ${name}. Put the exact name
 “${name}” once in large, correctly spelled, readable editorial type at the top,
 centered across the complete sheet.
 
@@ -1808,11 +1763,11 @@ images with no cracks, glass or missing areas. The back view must face completel
 away and reveal no facial feature or facial profile; its back-of-head hair remains
 a normal photorealistic photograph.
 
-HEAD-TO-BODY SCALE LOCK: every head — drawn or photographic — must be a normal
-adult head on that same body, about 1/7.5 to 1/8 of the full standing height. The
-drawn jaw sits exactly on the photographic neck and matches its width. Hard
-failure: bobblehead, oversized sketch cranium, manga-scale head, or a drawn head
-wider than the shoulders.
+HEAD-TO-BODY SCALE LOCK: every head — drawn or photographic — must have natural,
+anatomically believable proportions for the character described and match that
+same body. The drawn jaw sits exactly on the photographic neck and matches its
+width. Hard failure: bobblehead, oversized sketch cranium, manga-scale head, or a
+drawn head wider than the shoulders.
 
 DRAWN HEADS ON FRONT AND SIDE BODIES: replace the complete visible head region in
 the front and side views — face, ears, hairline and all head hair — with a clean,
@@ -1878,16 +1833,9 @@ const compileStandardCharacterPrompt = (
   const name = cleanText(input.label, 180);
   const facts = characterFacts(input) || 'Use only the approved identity and wardrobe facts supplied for this character.';
   const identity = compileFaceIdentityLock(input);
-  const minor = isExplicitMinor(input);
-  const subject = minor
-    ? 'original fictional child character'
-    : 'original fictional adult character';
-  const childSafety = minor
-    ? ' Keep wardrobe, pose and presentation strictly age-appropriate, ordinary and non-sexualized.'
-    : '';
-  return `Create one horizontal 3:2 identity sheet for ${name}, an ${subject}, as believable,
+  return `Create one horizontal 3:2 identity sheet for ${name}, an original fictional character, as believable,
 unretouched live-action casting photography on a neutral off-white background.
-APPROVED CHARACTER FACTS — PRESERVE EXACTLY: ${facts}${childSafety}
+APPROVED CHARACTER FACTS — PRESERVE EXACTLY: ${facts}
 ${identity.block}
 Include full-body front, strict 90-degree side and direct back views plus face
 front and strict side profile, all unmistakably the same person. Natural exposure,
@@ -2131,7 +2079,7 @@ export const compileReferenceImagePrompt = (
             ? 'hybrid_face_compat'
             : 'standard_ultra_photoreal'
         )
-        : (isExplicitMinor(input) ? 'standard_ultra_photoreal' : 'hybrid_face_compat');
+        : 'hybrid_face_compat';
       return {
         prompt: alreadyCompiled ? suppliedPrompt : compileOutfitLookPrompt(input),
         promptContract: REFERENCE_IMAGE_PROMPT_CONTRACT,

@@ -16,6 +16,7 @@ import {
   spineChunkRanges,
   spineChunkRangesIn,
   spineThroughForBatch,
+  STORY_KERNEL,
 } from '../src/services/season-architecture.service';
 
 const coveredEpisodes = (episodeCount: number, paywall: number | null) => {
@@ -85,6 +86,14 @@ test('beat engine cuts the button in the last seconds for TikTok-speed retention
   const first = beatEngineForDuration(120);
   assert.equal(first.hook, '0-15s');
   assert.equal(first.button, '110-120s');
+});
+
+test('story kernel is compact and bans arrival openings once', () => {
+  assert.match(STORY_KERNEL, /3s freeze-frame/);
+  assert.match(STORY_KERNEL, /O Retorno/);
+  assert.match(STORY_KERNEL, /adjacent pressure_type/);
+  assert.match(STORY_KERNEL, /viewer_dramatic_irony/);
+  assert.ok(STORY_KERNEL.length < 900, 'kernel must stay short for DeepSeek');
 });
 
 test('outline batches keep the full season map while generating cards in fives', () => {
