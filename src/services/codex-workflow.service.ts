@@ -597,7 +597,7 @@ Write in the project language.
 
 const spineChunkContract = (start: number, end: number, target: number) => `
 Create ONLY the compact episode spine for episodes ${start}-${end} of ${target}. This is the season map, not a script.
-Each slot is 1-2 sentences of function. Follow THIS_BLOCK_JSON. BLOCK_MAP_JSON is ranges and roles only — do not dramatize later blocks.
+Each slot is 1-2 sentences of function in the project language. Follow THIS_BLOCK_JSON. BLOCK_MAP_JSON is ranges and roles only — do not dramatize later blocks.
 Do not invent or hint LOCKED_REVEALS_JSON facts; locked ids stay unpaid. Adjacent pressure_type must differ.
 result:
 {
@@ -1268,6 +1268,11 @@ const generateOutlineInStages = async (
   }
 
   const chunks = spineChunkRangesIn(batch.fromEpisode, spineThrough);
+  const existingSpineCount = spine.filter(
+    (item) => item.episode >= batch.fromEpisode && item.episode <= spineThrough && String(item.function || '').trim(),
+  ).length;
+  const spineAlreadyCovers = existingSpineCount >= (spineThrough - batch.fromEpisode + 1);
+  if (!spineAlreadyCovers) {
   for (let index = 0; index < chunks.length; index += 1) {
     const chunk = chunks[index];
     const pct = 22 + Math.round(((index + 1) / Math.max(chunks.length, 1)) * 12);
@@ -1301,6 +1306,7 @@ const generateOutlineInStages = async (
       filledBlocks,
       reservedReveals,
     );
+  }
   }
   spine = ensureFullSpine(spine, spineThrough, filledBlocks, reservedReveals);
   patch.episode_spine = spine;
