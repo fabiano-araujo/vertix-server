@@ -572,6 +572,9 @@ const architectureContract = (target: number) => `
 THIS STAGE: fill ONLY the season architecture for ${target} episodes. Keep SERIES_CONTRACT_JSON unchanged. No cards, scripts, shots, hook_chain, or new cast/places.
 PLANNED_BLOCKS_JSON and RETENTION_PROFILE_JSON are code-owned: keep block ids, ranges, paywall, and conversion_role. Fill dramatic content only.
 Do not rewrite title, logline, emotional_fantasy or differentiating_mechanism.
+Fill irreversible_turn on every block: one visible decision that cannot be undone. Empty string is invalid.
+Do not invent a second opposing force. Do not kill locked supporting people before the ceiling. Do not name extras Caio or Marina.
+viewer_dramatic_irony must not hand the protagonist a reserved_reveal before earliest_episode, and must not contradict reserved_reveals.
 viewer_dramatic_irony must not contradict the free funnel (audience may know X; protagonist must not be handed X as fact). acquisition_clip is the EP1 3s detonation. Do not spend what EP${target} needs. At least 3 reserved_reveals after the free funnel.
 result:
 {
@@ -1179,7 +1182,10 @@ const generateOutlineInStages = async (
       ),
     );
     const worldPatch = asMap(worldResult.seriesBiblePatch);
-    patch.environments = filterRecurringEnvironments(worldPatch.environments);
+    patch.environments = filterRecurringEnvironments(worldPatch.environments).map((item) => ({
+      ...item,
+      kind: String(item.kind || '') === 'teritory' ? 'territory' : item.kind,
+    }));
     patch.props = Array.isArray(worldPatch.props) ? worldPatch.props : [];
     if (patch.world_visual_lock) {
       patch.environments = (patch.environments as JsonMap[]).map((item) => ({
@@ -1195,7 +1201,7 @@ const generateOutlineInStages = async (
     if (request.stopAfter === 'world') return result;
 
     if (!hasArchitecture) {
-    const architecturePrompt = `${lockedOutlineContract(request)}\n${architectureContract(target)}\nRETENTION_PROFILE_JSON:\n${JSON.stringify(profile)}\nPLANNED_BLOCKS_JSON:\n${JSON.stringify(plannedBlocks)}\nSERIES_CONTRACT_JSON:\n${JSON.stringify(compactSeriesContract(patch, String(bible.language || '')))}\nCAST_AND_PROPS_JSON:\n${JSON.stringify(compactCastAndPlaces(patch))}`;
+    const architecturePrompt = `${lockedOutlineContract(request)}\n${architectureContract(target)}\nRETENTION_JSON:\n${JSON.stringify(compactRetentionForMap(profile))}\nPLANNED_BLOCKS_JSON:\n${JSON.stringify(plannedBlocks)}\nSERIES_CONTRACT_JSON:\n${JSON.stringify(compactSeriesContract(patch, String(bible.language || '')))}\nCAST_AND_PLACES_JSON:\n${JSON.stringify(compactCastForSpine(patch))}`;
     const architectureResult = await generateJson(
       model,
       architecturePrompt,
