@@ -167,5 +167,22 @@ export const parseAiJsonObject = (text: string): Record<string, unknown> => {
       }
     }
   }
-  throw new Error(INVALID_AI_JSON_MESSAGE);
+  const preview = raw.replace(/\s+/g, ' ').slice(0, 280);
+  throw new Error(`${INVALID_AI_JSON_MESSAGE}: ${preview}`);
+};
+
+export const parseAiJsonObjectFromModel = (
+  content: string,
+  reasoning?: string,
+): Record<string, unknown> => {
+  try {
+    return parseAiJsonObject(content);
+  } catch (error) {
+    if (!reasoning?.trim()) throw error;
+    try {
+      return parseAiJsonObject(reasoning);
+    } catch {
+      throw error;
+    }
+  }
 };

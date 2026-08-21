@@ -53,15 +53,14 @@ const EMPTY_LENGTH_RETRY_MAX_TOKENS = 16384;
 const STORY_MIN_COMPLETION_TOKENS = 8192;
 const STORY_RETRY_REASONING_TOKENS = 2048;
 
-/** Hidden thinking stays on; only the JSON answer is returned. */
+/** Fast JSON answers: no high-effort chain-of-thought that burns minutes and wrecks json_object. */
 export const STORY_REASONING_HIDDEN: OpenRouterReasoning = {
-  effort: 'high',
-  exclude: true,
+  effort: 'none',
 };
 
-/** Visible thinking for admin debug panels in the Vertix studio. */
+/** Light visible thought for the studio, without the high-effort stall. */
 export const STORY_REASONING_VISIBLE: OpenRouterReasoning = {
-  effort: 'high',
+  effort: 'low',
   exclude: false,
 };
 
@@ -75,21 +74,103 @@ export type OpenRouterTextMeta = {
   model: string;
 };
 
-const extractOpenRouterReasoning = (message: any): string => {
-  if (typeof message?.reasoning === 'string' && message.reasoning.trim()) {
-    return message.reasoning.trim();
+const reasoningPiecesFrom = (source: any): string[] => {
+  if (!source || typeof source !== 'object') return [];
+  const pieces: string[] = [];
+  if (typeof source.reasoning === 'string') pieces.push(source.reasoning);
+  if (typeof source.reasoning_content === 'string') pieces.push(source.reasoning_content);
+  const details = source.reasoning_details;
+  if (Array.isArray(details)) {
+    for (const item of details) {
+      if (typeof item?.text === 'string') pieces.push(item.text);
+      else if (typeof item?.content === 'string') pieces.push(item.content);
+    }
   }
-  const details = message?.reasoning_details;
-  if (!Array.isArray(details)) return '';
-  return details
-    .map((item: any) => {
-      if (typeof item?.text === 'string') return item.text;
-      if (typeof item?.content === 'string') return item.content;
-      return '';
-    })
-    .filter(Boolean)
-    .join('\n\n')
-    .trim();
+  return pieces.filter((piece) => piece.trim());
+};
+
+const extractOpenRouterReasoning = (message: any): string =>
+  reasoningPiecesFrom(message).join('\n\n').trim();
+
+export type OpenRouterStreamAccumulation = {
+  content: string;
+  reasoning: string;
+  finishReason: string;
+  model: string;
+  reasoningTokens: number;
+  promptTokens: number;
+  completionTokens: number;
+};
+
+export const createOpenRouterStreamAccumulation = (): OpenRouterStreamAccumulation => ({
+  content: '',
+  reasoning: '',
+  finishReason: '',
+  model: '',
+  reasoningTokens: 0,
+  promptTokens: 0,
+  completionTokens: 0,
+});
+
+/** Apply one OpenRouter SSE JSON payload. Returns true when visible thought grew. */
+export const ingestOpenRouterStreamChunk = (
+  state: OpenRouterStreamAccumulation,
+  parsed: any,
+): boolean => {
+  if (!parsed || typeof parsed !== 'object') return false;
+  if (parsed.error) {
+    const message = parsed.error.message || parsed.error || 'Erro no stream de dados';
+    throw new Error(typeof message === 'string' ? message : 'Erro no stream de dados');
+  }
+  if (typeof parsed.model === 'string' && parsed.model.trim()) {
+    state.model = parsed.model.trim();
+  }
+  const usage = parsed.usage;
+  if (usage && typeof usage === 'object') {
+    state.promptTokens = Number(usage.prompt_tokens || state.promptTokens);
+    state.completionTokens = Number(usage.completion_tokens || state.completionTokens);
+    state.reasoningTokens = Number(
+      usage.completion_tokens_details?.reasoning_tokens || state.reasoningTokens,
+    );
+  }
+  const choice = parsed.choices?.[0];
+  if (!choice || typeof choice !== 'object') return false;
+  if (choice.finish_reason) {
+    state.finishReason = String(choice.finish_reason);
+  }
+  const before = state.reasoning;
+  const delta = choice.delta;
+  const deltaReasoning = reasoningPiecesFrom(delta).join('');
+  if (deltaReasoning) {
+    state.reasoning += deltaReasoning;
+  }
+  const messageReasoning = extractOpenRouterReasoning(choice.message);
+  if (messageReasoning && messageReasoning.length >= state.reasoning.length) {
+    state.reasoning = messageReasoning;
+  }
+  const deltaContent = typeof delta?.content === 'string' ? delta.content : '';
+  if (deltaContent) {
+    state.content += deltaContent;
+  } else if (!delta && typeof choice.message?.content === 'string') {
+    state.content = choice.message.content;
+  }
+  return state.reasoning !== before;
+};
+
+export const ingestOpenRouterSseLine = (
+  state: OpenRouterStreamAccumulation,
+  line: string,
+): boolean => {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith('data:')) return false;
+  const data = trimmed.slice(5).trim();
+  if (!data || data === '[DONE]') return false;
+  try {
+    return ingestOpenRouterStreamChunk(state, JSON.parse(data));
+  } catch (error) {
+    if (error instanceof SyntaxError) return false;
+    throw error;
+  }
 };
 
 export const storyCompletionBudget = (maxTokens: number): number =>
@@ -150,6 +231,8 @@ export const OPENROUTER_MAX_COMPLETION_USD_PER_MILLION = 0.30;
 export type OpenRouterProviderSort = 'throughput' | 'latency' | 'price';
 
 export type OpenRouterProviderPreferences = {
+  order: string[];
+  allow_fallbacks: boolean;
   sort: OpenRouterProviderSort;
   max_price: {
     completion: number;
@@ -169,11 +252,20 @@ const parseProviderSort = (value: string | undefined): OpenRouterProviderSort =>
   return 'throughput';
 };
 
+const parseProviderOrder = (value: string | undefined): string[] => {
+  const fromEnv = String(value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return fromEnv.length > 0 ? fromEnv : ['DeepSeek'];
+};
+
 /**
- * Mais rápido entre provedores com output ≤ US$ 0,30/M.
- * AtlasCloud (~US$ 1,32) e Wafer Fast (~US$ 0,56) ficam de fora.
+ * Prefere DeepSeek (rápido). AtlasCloud/Wafer caros ficam de fora pelo teto de US$ 0,30/M.
  */
 export const openRouterProviderPreferences = (): OpenRouterProviderPreferences => ({
+  order: parseProviderOrder(process.env.OPENROUTER_PROVIDER_ORDER),
+  allow_fallbacks: process.env.OPENROUTER_ALLOW_FALLBACKS === '0' ? false : true,
   sort: parseProviderSort(process.env.OPENROUTER_PROVIDER_SORT),
   max_price: {
     completion: parsePositiveNumber(
@@ -374,8 +466,71 @@ export const analyzeImage = async (
   }
 };
 
+const REASONING_STREAM_EMIT_MS = 400;
+
+const consumeOpenRouterSseStream = (
+  stream: Readable,
+  onReasoning?: (thought: string) => void,
+  abortController?: AbortController,
+): Promise<OpenRouterStreamAccumulation> =>
+  new Promise((resolve, reject) => {
+    const state = createOpenRouterStreamAccumulation();
+    let buffer = '';
+    let lastEmitAt = 0;
+    let settled = false;
+    const emitReasoning = (force = false) => {
+      if (!onReasoning || !state.reasoning) return;
+      const now = Date.now();
+      if (!force && now - lastEmitAt < REASONING_STREAM_EMIT_MS) return;
+      lastEmitAt = now;
+      onReasoning(state.reasoning);
+    };
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      abortController?.signal.removeEventListener('abort', onAbort);
+      if (error) {
+        reject(error);
+        return;
+      }
+      emitReasoning(true);
+      resolve(state);
+    };
+    const onAbort = () => {
+      stream.destroy();
+      finish(new Error('Requisição cancelada pelo usuário'));
+    };
+    abortController?.signal.addEventListener('abort', onAbort, { once: true });
+    if (abortController?.signal.aborted) {
+      onAbort();
+      return;
+    }
+
+    stream.on('data', (chunk) => {
+      buffer += chunk.toString();
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        try {
+          if (ingestOpenRouterSseLine(state, line)) {
+            emitReasoning();
+          }
+        } catch (error) {
+          finish(error instanceof Error ? error : new Error(String(error)));
+          stream.destroy();
+          return;
+        }
+      }
+    });
+    stream.on('end', () => finish());
+    stream.on('error', (err) => {
+      finish(err instanceof Error ? err : new Error(String(err)));
+    });
+  });
+
 /**
- * Non-streaming text generation with reasoning/token metadata for admin debug.
+ * Text generation with reasoning/token metadata. Streams by default so the
+ * studio can show the model thought before the JSON answer arrives.
  */
 export const generateTextWithMeta = async (
   prompt: string | Array<{ role: string; content: string }>,
@@ -387,6 +542,8 @@ export const generateTextWithMeta = async (
     reasoning?: OpenRouterReasoning;
     response_format?: { type: 'json_object' | 'text' };
     lengthRetry?: boolean;
+    stream?: boolean;
+    onReasoning?: (thought: string) => void;
   } = {},
   abortController?: AbortController,
 ): Promise<OpenRouterTextMeta> => {
@@ -402,14 +559,18 @@ export const generateTextWithMeta = async (
   }
 
   const provider = openRouterProviderPreferences();
+  const useStream = options.stream !== false;
   const request: Record<string, unknown> = {
     model: toDefaultProviderModel(options.model || AVAILABLE_MODELS.DEEPSEEK_V4_FLASH),
     messages,
     temperature: options.temperature,
     max_tokens: options.max_tokens,
-    stream: false,
+    stream: useStream,
     provider,
   };
+  if (useStream) {
+    request.stream_options = { include_usage: true };
+  }
   if (options.response_format) {
     request.response_format = options.response_format;
   }
@@ -419,7 +580,7 @@ export const generateTextWithMeta = async (
   }
 
   console.log(
-    `Enviando texto para OpenRouter model=${request.model} max_tokens=${options.max_tokens || 'default'} sort=${provider.sort} max_output=$${provider.max_price.completion}/M`,
+    `Enviando texto para OpenRouter model=${request.model} streaming=${useStream} max_tokens=${options.max_tokens || 'default'} provider_order=${provider.order.join(',')} sort=${provider.sort} max_output=$${provider.max_price.completion}/M`,
   );
 
   const config = {
@@ -433,25 +594,63 @@ export const generateTextWithMeta = async (
     timeout: options.timeout || 180000,
   };
 
+  const metaFromAccumulation = (
+    state: OpenRouterStreamAccumulation,
+  ): OpenRouterTextMeta => ({
+    content: state.content,
+    reasoning: state.reasoning.trim(),
+    reasoningTokens: state.reasoningTokens,
+    promptTokens: state.promptTokens,
+    completionTokens: state.completionTokens,
+    finishReason: state.finishReason || 'unknown',
+    model: state.model || String(request.model || ''),
+  });
+
   const runOnce = async (): Promise<OpenRouterTextMeta> => {
-    const response = await axios.post<OpenRouterResponse>(API_URL, request, config);
-    const choice = response.data?.choices?.[0] as any;
-    const content = typeof choice?.message?.content === 'string'
-      ? choice.message.content
-      : '';
-    const usage = response.data?.usage as any;
-    const routedProvider = (response.data as { provider?: unknown } | undefined)?.provider;
-    const meta: OpenRouterTextMeta = {
-      content,
-      reasoning: extractOpenRouterReasoning(choice?.message),
-      reasoningTokens: Number(usage?.completion_tokens_details?.reasoning_tokens || 0),
-      promptTokens: Number(usage?.prompt_tokens || 0),
-      completionTokens: Number(usage?.completion_tokens || 0),
-      finishReason: String(choice?.finish_reason || 'unknown'),
-      model: String(request.model || ''),
-    };
+    if (!useStream) {
+      const response = await axios.post<OpenRouterResponse>(API_URL, request, config);
+      const choice = response.data?.choices?.[0] as any;
+      const content = typeof choice?.message?.content === 'string'
+        ? choice.message.content
+        : '';
+      const usage = response.data?.usage as any;
+      const routedProvider = (response.data as { provider?: unknown } | undefined)?.provider;
+      const meta: OpenRouterTextMeta = {
+        content,
+        reasoning: extractOpenRouterReasoning(choice?.message),
+        reasoningTokens: Number(usage?.completion_tokens_details?.reasoning_tokens || 0),
+        promptTokens: Number(usage?.prompt_tokens || 0),
+        completionTokens: Number(usage?.completion_tokens || 0),
+        finishReason: String(choice?.finish_reason || 'unknown'),
+        model: String(request.model || ''),
+      };
+      console.log(
+        `OpenRouter ok model=${meta.model} provider=${routedProvider || 'unknown'} finish=${meta.finishReason} content_len=${meta.content.length} completion=${meta.completionTokens} reasoning=${meta.reasoningTokens}`,
+      );
+      if (!meta.content.trim() && meta.reasoning) {
+        console.warn(
+          `OpenRouter content empty with reasoning_len=${meta.reasoning.length}; JSON may have landed in thought`,
+        );
+      }
+      return meta;
+    }
+
+    const response = await axios.post(API_URL, request, {
+      ...config,
+      headers: {
+        ...config.headers,
+        Accept: 'text/event-stream',
+      },
+      responseType: 'stream',
+    });
+    const state = await consumeOpenRouterSseStream(
+      response.data as Readable,
+      options.onReasoning,
+      abortController,
+    );
+    const meta = metaFromAccumulation(state);
     console.log(
-      `OpenRouter ok model=${meta.model} provider=${routedProvider || 'unknown'} finish=${meta.finishReason} content_len=${meta.content.length} completion=${meta.completionTokens} reasoning=${meta.reasoningTokens}`,
+      `OpenRouter stream ok model=${meta.model} finish=${meta.finishReason} content_len=${meta.content.length} completion=${meta.completionTokens} reasoning=${meta.reasoningTokens} thought_len=${meta.reasoning.length}`,
     );
     return meta;
   };
@@ -494,6 +693,17 @@ export const generateTextWithMeta = async (
     ) {
       console.log('Requisição cancelada pelo usuário');
       throw new Error('Requisição cancelada pelo usuário');
+    }
+    const status = Number(error?.response?.status || 0);
+    if (useStream && status === 400) {
+      console.warn(
+        `OpenRouter stream 400; falling back to non-stream: ${openRouterErrorMessage(error)}`,
+      );
+      return generateTextWithMeta(
+        prompt,
+        { ...options, stream: false },
+        abortController,
+      );
     }
     logDetailedError(error);
     throw new Error(openRouterErrorMessage(error));
